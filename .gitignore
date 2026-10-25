@@ -1,0 +1,48 @@
+# Build output
+build/
+build-*/
+cmake-build-*/
+.ninja_deps
+.ninja_log
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+Makefile
+*.a
+*.o
+*.d
+*.elf
+*.axf
+*.hex
+*.bin
+*.map
+*.lst
+*.log
+*.su
+*.bak
+*.tmp
+
+# IDE and generated project state
+*.uvoptx
+*.uvgui.*
+*.uvguix.*
+*.dep
+*.scvd
+*.sdf
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Local tools, temporary files, and archives
+.work/
+outputs/
+*.7z
+*.zip
+
+# Vendor SDK is kept locally and delivered separately
+thirdparty/GD32F50x_Firmware_Library_V1.0.3/
+thirdparty/GD32F50x_Firmware_Library_V1.0.3/
+!thirdparty/GD32F50x_Firmware_Library_V1.0.3.7z
