@@ -1,0 +1,3 @@
+[submodule "modules/roboparty_bms"]
+	path = thirdparty/roboparty_bms
+	url = https://github.com/Roboparty/roboparty_bms.git
