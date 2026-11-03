@@ -46,3 +46,12 @@ outputs/
 thirdparty/GD32F50x_Firmware_Library_V1.0.3/
 thirdparty/GD32F50x_Firmware_Library_V1.0.3/
 !thirdparty/GD32F50x_Firmware_Library_V1.0.3.7z
+
+# RT-Thread 5.3.0 is cloned locally (same convention as GD32 RTT_ROOT)
+thirdparty/rt-thread/
+thirdparty/STM32F1xx_CMSIS/
+thirdparty/.cmsis_extract/
+
+# Vendored ST CMSIS packages
+!thirdparty/STM32CubeF1-v1.8.7.zip
+!thirdparty/cmsis_device_f1-v4.3.5.zip

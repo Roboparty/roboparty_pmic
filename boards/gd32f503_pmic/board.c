@@ -69,7 +69,7 @@ void rt_hw_board_init()
     SCB->VTOR  = (0x10000000 & NVIC_VTOR_MASK);
 #else  /* VECT_TAB_FLASH  */
     /* Set the Vector Table base location at 0x08000000 */
-    SCB->VTOR  = (0x08000000 & NVIC_VTOR_MASK);
+    SCB->VTOR  = (0x08008000 & NVIC_VTOR_MASK);
 #endif
 
     SystemClock_Config();

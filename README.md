@@ -14,7 +14,7 @@ PMIC 负责采集背板 12 V / 24 V / 48 V 输出电压，管理主副 BMS 通�
 
 | 模块 | 状态 | 说明 |
 | --- | --- | --- |
-| 板级启动 / SysTick / 控制台 | 可用 | `boards/roboparty_pmic/board.c`，控制台为 `uart0` |
+| 板级启动 / SysTick / 控制台 | 可用 | `boards/gd32f503_pmic/board.c`，控制台为 `uart0` |
 | BMS `0x31` 查询与 CRC 校验 | 已实现，未接入 | `src/scud_bms_rtt.cpp`，尚未在 `main()` 中实例化 |
 | BMS `0x61` 查询 | 未实现 | 协议已约定，代码未实现 |
 | 副 BMS 管理 | 未实现 | 型号与总线拓扑待确认 |
@@ -42,7 +42,7 @@ flowchart LR
 | 项目 | 定义 | 依据 |
 | --- | --- | --- |
 | MCU | GD32F503，Cortex-M33 | `CMakeLists.txt` |
-| Flash / SRAM | 512 KB / 128 KB | `boards/roboparty_pmic/linker_scripts/link.ld` |
+| Flash / SRAM | 512 KB / 128 KB | `boards/gd32f503_pmic/linker_scripts/link.ld` |
 | 封装 | 待确认 | 需核对实际物料 |
 | RTOS | RT-Thread 5.3.0 | `inc/rtconfig.h`（`RT_VER_NUM 0x50300`） |
 | 调试串口 | USART0，115200 8N1 | `BSP_UART0_*` |
@@ -54,7 +54,7 @@ flowchart LR
 
 ## 引脚分配
 
-固件中真正落地的引脚只有调试串口。`boards/roboparty_pmic/Kconfig` 中 UART1～UART3 的 `PA8/PA9` 是模板默认值，**不代表本板实际连接**；下表“待分配”项必须以原理图/线束图为准，确认后再写入 `rtconfig.h`。
+固件中真正落地的引脚只有调试串口。`boards/gd32f503_pmic/Kconfig` 中 UART1～UART3 的 `PA8/PA9` 是模板默认值，**不代表本板实际连接**；下表“待分配”项必须以原理图/线束图为准，确认后再写入 `rtconfig.h`。
 
 ### 已配置
 
@@ -153,7 +153,7 @@ SPI Flash 计划保存 `routine_log`、`exception_log`、`MCU_OTA_BIN` 以及主
 ## 工程结构
 
 ```text
-boards/roboparty_pmic/       板级启动、时钟、Kconfig 和链接脚本
+boards/gd32f503_pmic/       板级启动、时钟、Kconfig 和链接脚本
 src/                         PMIC 应用入口与 BMS 适配
 inc/                         rtconfig.h 与项目头文件
 thirdparty/
@@ -191,7 +191,7 @@ cmake --build build-scud
 硬件：
 
 - GD32F503 具体封装、Flash/RAM 容量与量产物料型号。
-- `boards/roboparty_pmic/Kconfig` 仍沿用 GD32E503VE 模板，需改为 GD32F503 实际系列/型号。
+- `boards/gd32f503_pmic/Kconfig` 仍沿用 GD32E503VE 模板，需改为 GD32F503 实际系列/型号。
 - 主副 BMS 型号、总线拓扑和 OTA 协议。
 - 12 V、24 V、48 V 的 ADC 引脚、分压参数和采样周期。
 - 输出电压过压、欠压和恢复阈值。
