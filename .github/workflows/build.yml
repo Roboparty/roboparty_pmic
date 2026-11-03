@@ -1,0 +1,148 @@
+name: Build PMIC firmware
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  RTT_REPO: https://github.com/RT-Thread/rt-thread.git
+  RTT_REF: v5.3.0
+
+jobs:
+  build:
+    runs-on: [self-hosted, a100]
+    timeout-minutes: 45
+
+    steps:
+      - name: Fix workspace permissions
+        run: sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update -o DPkg::Lock::Timeout=600
+          sudo apt-get install -o DPkg::Lock::Timeout=600 -y --no-install-recommends \
+            cmake ninja-build gcc-arm-none-eabi unzip p7zip-full python3
+
+      - name: Restore dependency cache
+        id: deps-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            thirdparty/rt-thread
+            thirdparty/GD32F50x_Firmware_Library_V1.0.3
+            thirdparty/STM32F1xx_CMSIS
+          key: pmic-deps-${{ runner.os }}-${{ env.RTT_REF }}-${{ hashFiles('scripts/extract_stm32_cmsis.sh', 'thirdparty/GD32F50x_Firmware_Library_V1.0.3.7z', 'thirdparty/STM32CubeF1-v1.8.7.zip', 'thirdparty/cmsis_device_f1-v4.3.5.zip') }}
+
+      - name: Prepare dependencies
+        run: |
+          set -euo pipefail
+          if [ ! -f thirdparty/rt-thread/src/scheduler_up.c ] || \
+             [ "$(git -C thirdparty/rt-thread describe --tags --always 2>/dev/null)" != "$RTT_REF" ]; then
+            rm -rf thirdparty/rt-thread
+            git clone --depth 1 --branch "$RTT_REF" "$RTT_REPO" thirdparty/rt-thread
+          fi
+          if [ ! -d thirdparty/GD32F50x_Firmware_Library_V1.0.3/Firmware ]; then
+            7z x -y -othirdparty thirdparty/GD32F50x_Firmware_Library_V1.0.3.7z >/dev/null
+          fi
+          if [ ! -f thirdparty/STM32F1xx_CMSIS/VERSION ]; then
+            ./scripts/extract_stm32_cmsis.sh
+          fi
+
+      - name: Save dependency cache
+        if: steps.deps-cache.outputs.cache-hit != 'true' && success()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            thirdparty/rt-thread
+            thirdparty/GD32F50x_Firmware_Library_V1.0.3
+            thirdparty/STM32F1xx_CMSIS
+          key: pmic-deps-${{ runner.os }}-${{ env.RTT_REF }}-${{ hashFiles('scripts/extract_stm32_cmsis.sh', 'thirdparty/GD32F50x_Firmware_Library_V1.0.3.7z', 'thirdparty/STM32CubeF1-v1.8.7.zip', 'thirdparty/cmsis_device_f1-v4.3.5.zip') }}
+
+      - name: Build STM32F103 bootloader
+        run: |
+          set -euo pipefail
+          B=build-ci
+          cmake -S boards/stm32f103_pmic/bootloader -B "$B/boot-right" -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$B/boot-right" -j"$(nproc)"
+          cmake -S boards/stm32f103_pmic/bootloader -B "$B/boot-left" -G Ninja -DCMAKE_BUILD_TYPE=Release -DPMIC_LEFT_LAYOUT=ON
+          cmake --build "$B/boot-left" -j"$(nproc)"
+
+      - name: Build STM32F103 application
+        run: |
+          set -euo pipefail
+          B=build-ci
+          TC="$PWD/boards/stm32f103_pmic/cmake/gcc-arm-none-eabi.cmake"
+          cmake -S boards/stm32f103_pmic -B "$B/app-right" -G Ninja -DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$B/app-right" -j"$(nproc)"
+          cmake -S boards/stm32f103_pmic -B "$B/app-left" -G Ninja -DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release -DPMIC_LEFT_LAYOUT=ON
+          cmake --build "$B/app-left" -j"$(nproc)"
+
+      - name: Build GD32F503 library
+        run: |
+          set -euo pipefail
+          B=build-ci/gd32-lib
+          cmake -S . -B "$B" -G Ninja \
+            -DCMAKE_C_COMPILER=arm-none-eabi-gcc \
+            -DCMAKE_CXX_COMPILER=arm-none-eabi-g++ \
+            -DCMAKE_ASM_COMPILER=arm-none-eabi-gcc
+          cmake --build "$B" -j"$(nproc)"
+
+      - name: Collect artifacts
+        run: |
+          set -euo pipefail
+          for v in right left; do
+            mkdir -p "dist/$v"
+            cp "build-ci/boot-$v/boot.bin" "build-ci/boot-$v/boot.hex" "dist/$v/"
+            cp "build-ci/app-$v/ChargeBAT.bin" "build-ci/app-$v/ChargeBAT.hex" "dist/$v/"
+            (cd "dist/$v" && sha256sum boot.bin boot.hex ChargeBAT.bin ChargeBAT.hex > SHA256SUMS)
+            tar -C "dist/$v" -czf "dist/stm32f103_ota_images-$v.tar.gz" .
+          done
+          cp build-ci/gd32-lib/libroboparty_pmic.a dist/
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: pmic-firmware
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: [self-hosted, a100]
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download firmware
+        uses: actions/download-artifact@v4
+        with:
+          name: pmic-firmware
+          path: dist
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/libroboparty_pmic.a
+          generate_release_notes: true
