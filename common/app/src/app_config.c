@@ -115,11 +115,22 @@ void app_config_init(void)
         g_config.fan = 49;
     }
 
+#ifdef PMIC_LEFT_LAYOUT
+    /* Charging stays off until the BMS thread has confirmed fresh data. */
+    g_config.chg_en = 0;
+    g_config.ictrl = 0;
+#endif
     ApplyConfig();
 }
 
 void UpdateConfigFromCommand(const char *cmd_name, int value)
 {
+#ifdef PMIC_LEFT_LAYOUT
+    if (strcmp(cmd_name, "CHG_EN") == 0 || strcmp(cmd_name, "ICTRL") == 0)
+    {
+        return;
+    }
+#endif
     app_config_lock();
 
     if (strcmp(cmd_name, "ICTRL") == 0)

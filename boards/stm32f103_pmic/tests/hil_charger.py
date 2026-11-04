@@ -11,6 +11,7 @@ state or wear the configuration flash.
 
 Examples:
     python3 tests/hil_charger.py --port /dev/ttyUSB0
+    python3 tests/hil_charger.py --layout left --port /dev/ttyUSB0
     python3 tests/hil_charger.py --port /dev/ttyUSB0 --allow-write
     python3 tests/hil_charger.py --self-test
 """
@@ -29,6 +30,15 @@ READ_ONLY_CASES = [
     ("BAT_SOC:1;", ["BMS_SOC:"]),
     ("BAT_SOH:1;", ["BMS_SOH:"]),
     ("SYS_INFO:1;", ["UPTIME:", "CHARGE_STACK:", "BMS_STACK:", "UI_STACK:", "HOST_STACK:"]),
+]
+
+LEFT_READ_ONLY_CASES = [
+    ("CHRG_INFO:1;", ["CHRG_V:", "CHRG_I:", "BAT_V:", "ICTRL:", "CHG_EN:"]),
+    ("BAT_INST:1;", ["BAT_INST:0;"]),
+    ("IR_REC:1;", ["IR_REC:0;"]),
+    ("BAT_SOC:1;", ["BMS_DISABLED;"]),
+    ("BAT_SOH:1;", ["BMS_DISABLED;"]),
+    ("SYS_INFO:1;", ["UPTIME:", "CHARGE_STACK:", "HOST_STACK:"]),
 ]
 
 WRITE_CASES = [
@@ -50,8 +60,9 @@ SAVE_CASES = [
 class FakeTransport:
     """Offline responder used by --self-test."""
 
-    def __init__(self):
+    def __init__(self, layout="right"):
         self.commands = []
+        self.layout = layout
 
     def exchange(self, command, timeout):
         self.commands.append(command)
@@ -72,6 +83,20 @@ class FakeTransport:
                 "UI_STACK:144/1024;HOST_STACK:200/1280;"
             ),
         }
+        if self.layout == "left":
+            replies.update({
+                "CHRG_INFO": (
+                    "CHRG_SN:HIL-TEST;SW_DATE:2026-11-02-A;FW_VER:0.1.4-left;"
+                    "R:10;G:10;B:10;FAN:0;BAT_INST:0;IR_REC:0;"
+                    "CHRG_V:20.0V;CHRG_I:0.0A;BAT_V:24.0V;"
+                    "ICTRL:0;CHG_EN:0;"
+                ),
+                "BAT_INST": "BAT_INST:0;",
+                "IR_REC": "IR_REC:0;",
+                "BAT_SOC": "BMS_DISABLED;",
+                "BAT_SOH": "BMS_DISABLED;",
+                "SYS_INFO": "UPTIME:12345;CHARGE_STACK:120/1024;HOST_STACK:200/2560;",
+            })
         return replies.get(name, command)
 
     def close(self):
@@ -102,9 +127,7 @@ class SerialTransport:
             if chunk:
                 data.extend(chunk)
                 last_rx = time.monotonic()
-                if b";" in chunk or b"\n" in chunk:
-                    break
-            elif data and (time.monotonic() - last_rx) >= 0.05:
+            elif data and (time.monotonic() - last_rx) >= 0.1:
                 break
 
         return data.decode("ascii", errors="replace")
@@ -133,6 +156,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", default=SERIAL_DEFAULT)
     parser.add_argument("--baud", type=int, default=BAUD_DEFAULT)
+    parser.add_argument("--layout", choices=("left", "right"), default="right")
     parser.add_argument("--timeout", type=float, default=1.0)
     parser.add_argument("--allow-write", action="store_true",
                         help="exercise LED and fan commands")
@@ -146,7 +170,7 @@ def main():
                         help="run against an offline fake responder")
     args = parser.parse_args()
 
-    cases = list(READ_ONLY_CASES)
+    cases = list(LEFT_READ_ONLY_CASES if args.layout == "left" else READ_ONLY_CASES)
     if args.allow_write:
         cases += WRITE_CASES
     if args.allow_charge:
@@ -159,7 +183,7 @@ def main():
             print(command)
         return 0
 
-    transport = FakeTransport() if args.self_test else SerialTransport(args.port, args.baud, args.timeout)
+    transport = FakeTransport(args.layout) if args.self_test else SerialTransport(args.port, args.baud, args.timeout)
     failed = 0
 
     try:

@@ -50,9 +50,11 @@ static void board_gpio_init(void)
 #endif
     gpio_mode(0, 8, 0x2U, 0x3U);
 
+#ifndef PMIC_LEFT_LAYOUT
     /* PA9 USART1_TX, PA10 USART1_RX */
     gpio_mode(0, 9, 0x2U, 0x3U);
     gpio_mode(0, 10, 0x1U, 0x0U);
+#endif
 
 #ifndef PMIC_LEFT_LAYOUT
     /* PB0 TIM3_CH3, PB1/PB2 OLED I2C. */
@@ -60,11 +62,11 @@ static void board_gpio_init(void)
     gpio_mode(1, 1, 0x1U, 0x2U);
     gpio_mode(1, 2, 0x1U, 0x2U);
 #endif
-    /* PB3 charge enable; PB4 battery detect. */
+    /* PB3 charge enable; PB4 is only connected on the right board. */
     gpio_mode(1, 3, 0x0U, 0x2U);
 
-    gpio_mode(1, 4, 0x1U, 0x0U);
 #ifndef PMIC_LEFT_LAYOUT
+    gpio_mode(1, 4, 0x1U, 0x0U);
     /* PB6/7 infrared pair. */
     gpio_mode(1, 6, 0x1U, 0x0U);
     gpio_mode(1, 7, 0x0U, 0x2U);
@@ -121,8 +123,12 @@ void SystemClock_Config(void)
 
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN | RCC_APB1ENR_TIM3EN |
                     RCC_APB1ENR_USART3EN | RCC_APB1ENR_PWREN;
+#ifdef PMIC_LEFT_LAYOUT
+    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN | RCC_APB2ENR_TIM1EN;
+#else
     RCC->APB2ENR |= RCC_APB2ENR_ADC1EN | RCC_APB2ENR_TIM1EN |
                     RCC_APB2ENR_USART1EN;
+#endif
     RCC->AHBENR |= RCC_AHBENR_DMA1EN;
 
     SystemCoreClock = 72000000U;

@@ -63,6 +63,8 @@ set(RTT_DRIVER_SOURCES
 
 if(PMIC_LEFT_LAYOUT)
     set(PMIC_LAYOUT_SOURCES)
+    set(PMIC_BMS_DRIVER_SOURCE)
+    set(PMIC_BMS_APP_SOURCE)
 else()
     set(PMIC_LAYOUT_SOURCES
         drivers/w25q128.c
@@ -72,6 +74,8 @@ else()
         ${REPO_ROOT}/common/drivers/src/key.c
         ${REPO_ROOT}/common/app/src/app_ui.c
     )
+    set(PMIC_BMS_DRIVER_SOURCE ${REPO_ROOT}/common/drivers/src/bms_tws.c)
+    set(PMIC_BMS_APP_SOURCE ${REPO_ROOT}/common/app/src/app_bms.c)
 endif()
 
 add_executable(${PROJECT_NAME}
@@ -90,13 +94,13 @@ add_executable(${PROJECT_NAME}
     ${REPO_ROOT}/common/drivers/src/i2c_soft.c
     ${REPO_ROOT}/common/drivers/src/ch224.c
     ${REPO_ROOT}/common/drivers/src/tmp100.c
-    ${REPO_ROOT}/common/drivers/src/bms_tws.c
+    ${PMIC_BMS_DRIVER_SOURCE}
 
     ${REPO_ROOT}/common/app/src/app_main.c
     ${REPO_ROOT}/common/app/src/app_state.c
     ${REPO_ROOT}/common/app/src/app_config.c
     ${REPO_ROOT}/common/app/src/app_charge.c
-    ${REPO_ROOT}/common/app/src/app_bms.c
+    ${PMIC_BMS_APP_SOURCE}
     ${REPO_ROOT}/common/app/src/app_host.c
     ${PMIC_LAYOUT_SOURCES}
     ${RTT_KERNEL_SOURCES}

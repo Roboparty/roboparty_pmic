@@ -11,7 +11,9 @@ struct bsp_uart
     uint32_t pclk;
 };
 
+#ifndef PMIC_LEFT_LAYOUT
 static struct bsp_uart uart1_dev;
+#endif
 static struct bsp_uart uart3_dev;
 
 static rt_err_t uart_configure(struct rt_serial_device *serial, struct serial_configure *cfg)
@@ -109,12 +111,14 @@ static void uart_irq_handler(struct bsp_uart *uart)
     }
 }
 
+#ifndef PMIC_LEFT_LAYOUT
 void USART1_IRQHandler(void)
 {
     rt_interrupt_enter();
     uart_irq_handler(&uart1_dev);
     rt_interrupt_leave();
 }
+#endif
 
 void USART3_IRQHandler(void)
 {
@@ -140,11 +144,15 @@ static void uart_init_device(struct bsp_uart *uart, USART_TypeDef *instance,
 
 void rt_hw_serial_init(void)
 {
+#ifndef PMIC_LEFT_LAYOUT
     uart_init_device(&uart1_dev, USART1, USART1_IRQn, 72000000U, "uart1");
+#endif
     uart_init_device(&uart3_dev, USART3, USART3_IRQn, 36000000U, "uart3");
 
+#ifndef PMIC_LEFT_LAYOUT
     NVIC_SetPriority(USART1_IRQn, 1);
     NVIC_EnableIRQ(USART1_IRQn);
+#endif
     NVIC_SetPriority(USART3_IRQn, 1);
     NVIC_EnableIRQ(USART3_IRQn);
 }

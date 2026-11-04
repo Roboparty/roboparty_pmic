@@ -42,21 +42,48 @@ is:
 | PA0/PA1/PA2 | I_IN / U_BAT / U_IN | ADC current / battery / input |
 | PA3 | ICTRL | TIM2_CH4 charge-current PWM |
 | PA4/PA5 | LED_R / LED_G | Digital status LEDs; nonzero R/G means on |
-| PA6/PA7 | BAT_G / BAT_R | Battery present and healthy / fault indicators |
+| PA6/PA7 | BAT_G / BAT_R | BAT_G stays off without BMS; BAT_R shows a latched exception |
 | PA8 | FAN | TIM1_CH1 PWM |
-| PA9/PA10 | USART1_TX/RX | BMS serial |
-| PB3/PB4 | EN / BATINS | Charge enable / battery detect |
+| PA9/PA10 | No connected 485/BMS interface | Not configured or used on the left layout |
+| PB3 | EN | Charge enable |
+| PB4 | Unconnected | Not configured or read on the left layout |
 | PB8/PB9 | SCL / SDA | Software I2C for CH224 and TMP100 |
 | PB10/PB11 | USART3_TX/RX | Host protocol and console |
 
 PB0-PB2, PB6-PB7, and PB12-PB15 are shown unconnected on the left. OLED,
-button, infrared, buzzer, SPI flash, and OTA code are excluded or inactive in
+button, infrared, buzzer, SPI flash, BMS communication, and OTA code are excluded or inactive in
 this variant. The `B` color setting has no physical blue LED output. LED
 polarity and the battery-indicator behavior are software assumptions pending
 bench observation; the schematic screenshot only identifies their nets.
 
 The left application and bootloader both compile. See the hardware test below
 for the flashed image and serial checks.
+
+Since `0.1.4-left`, PB4 and PA9/PA10 are unused. The left build omits the BMS
+driver and thread and does not initialize USART1. There is no validated
+battery-presence or state-of-charge input, so charging stays disabled: PB3 EN
+and PA3 ICTRL remain off. Stored `CHG_EN`/`ICTRL` values are cleared at startup
+and host writes to those fields are ignored. The right layout retains its
+original BMS and PB4 behavior. The `0.1.4-left` flash and serial checks are
+recorded below; analog accuracy and loaded charging remain unverified.
+
+The host-command guard has a separate offline test. Its host build suppresses
+an existing signedness warning in the unrelated Flash-save function:
+
+```sh
+gcc -std=c11 -Wall -Wextra -Werror -Wno-error=sign-compare \
+  -DPMIC_LEFT_LAYOUT -ffunction-sections -fdata-sections \
+  -Iboards/stm32f103_pmic/tests/charge_guard -Icommon/app/inc \
+  -Icommon/bsp -Iboards/stm32f103_pmic \
+  boards/stm32f103_pmic/tests/charge_guard/test_charge_commands.c \
+  common/app/src/app_config.c -Wl,--gc-sections \
+  -o ../../test/tmp/pmic-charge-commands
+../../test/tmp/pmic-charge-commands
+```
+
+Use `python3 boards/stm32f103_pmic/tests/hil_charger.py --layout left --self-test`
+for the offline left-layout response contract. The real-port test passed on
+COM82 and through A100 `socket://127.0.0.1:22282` on 2026-11-04.
 
 ### Identity queries
 
@@ -66,7 +93,7 @@ printed in ascending address order, with eight uppercase hex digits each.
 `CHRG_INFO:1;` includes the same SN. `CHRG_SN:<value>;` now replies
 `SN_READ_ONLY;` on STM32F103 and cannot change this hardware ID.
 `FW_VER:1;` returns the compiled firmware identifier
-`FW_VER:0.1.2-left;`; the right-schematic variant uses `0.1.2-right`.
+`FW_VER:0.1.4-left;`; the right-schematic variant uses `0.1.2-right`.
 `SW_DATE` is separate writable metadata, not the firmware version.
 
 ### Host serial protocol
@@ -83,13 +110,13 @@ acts on `;` or 50 ms of input silence. Setting commands have no success ACK.
 | Request | Reply or action |
 | --- | --- |
 | `SN_GET:1;` | `CHRG_SN:<96-bit UID as 24 uppercase hex digits>;` |
-| `FW_VER:1;` | `FW_VER:0.1.2-left;` |
+| `FW_VER:1;` | `FW_VER:0.1.4-left;` |
 | `CHRG_INFO:1;` | SN, date, version, config, input/battery readings, charge status |
 | `SYS_INFO:1;` | uptime and thread stack high-water marks |
-| `BAT_INST:1;`, `IR_REC:1;` | Detection fields; IR is absent on left layout |
-| `BAT_SOC:1;`, `BAT_SOH:1;` | Cached BMS values; BMS is polled only with battery present |
-| `R:n;`, `G:n;`, `B:n;`, `FAN:n;`, `ICTRL:n;` | Set 0-100 in RAM; no ACK |
-| `CHG_EN:n;` | Set 0 or 1 in RAM; charge logic may override it |
+| `BAT_INST:1;`, `IR_REC:1;` | On left both return 0 as legacy placeholders; neither input is connected |
+| `BAT_SOC:1;`, `BAT_SOH:1;` | On left return `BMS_DISABLED;`; right layout reads cached BMS values |
+| `R:n;`, `G:n;`, `B:n;`, `FAN:n;` | Set 0-100 in RAM; no ACK |
+| `ICTRL:n;`, `CHG_EN:n;` | Ignored on left; right layout retains writable settings, subject to charge logic |
 | `SW_DATE:text;`, `SAVE:1;` | Set date in RAM; explicitly save config to internal Flash |
 | `CHRG_SN:text;` | `SN_READ_ONLY;` on STM32F103 |
 | `OTA_*:...;` | `OTA_ERR;` on the left layout (no external SPI Flash) |
@@ -98,6 +125,31 @@ The `B` setting is retained for protocol compatibility but has no physical
 blue LED on the left layout. An empty `SW_DATE` is expected until set and
 saved. Send one request at a time and wait for its terminating `;` fields;
 short TCP sessions through the serial bridge can lose a single request.
+
+### Left-board 0.1.4 hardware test (2026-11-04)
+
+Horco CMSIS-DAP `3181740232` read UID words `0669FF55 55537872 87104058`,
+matching the previous board record. The full 64 KiB Flash was saved before
+programming. pyOCD wrote only the application at `0x08001000` with sector
+erase; a 41,156-byte readback matched the binary byte for byte (SHA-256
+`9d8354091d111549d6f6ac054b0c52d229175af73bee12f572207f2cfb4a9224`).
+The configuration page at `0x0800FC00` remained erased. The probe reset and
+resumed the MCU after programming.
+
+COM82 returned `FW_VER:0.1.4-left;` and
+`CHRG_SN:0669FF555553787287104058;`. The left-layout HIL read-only cases
+passed 6/6 on COM82, then 10/10 repeated runs, and 6/6 through A100 port
+`22282`. `BAT_SOC` and `BAT_SOH` returned `BMS_DISABLED;`, and `SYS_INFO`
+reported CHARGE and HOST stacks without a BMS stack. After sending
+`CHG_EN:1;` and `ICTRL:100;`, `CHRG_INFO` still reported `CHG_EN:0` and
+`ICTRL:0`. Debug-register reads showed PB3 output bit 0 and TIM2 CCR4 0.
+
+The 60-second A100 read-only soak returned 15/15 complete `SYS_INFO` and
+15/15 complete `CHRG_INFO` responses with zero empty replies or errors.
+Uptime rose monotonically from 414,362 to 470,430 ms. Maximum observed
+stack use was CHARGE 176/1024 and HOST 1824/2560 bytes. This validates the
+software output state, but no external voltage, current, LED, fan, PD, or
+loaded charging measurement was made.
 
 ### Left-board hardware test (2026-11-03)
 

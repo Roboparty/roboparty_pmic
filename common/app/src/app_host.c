@@ -23,7 +23,7 @@
 #define HOST_RX_SIZE     512
 
 #ifdef PMIC_LEFT_LAYOUT
-#define PMIC_FW_VERSION "0.1.2-left"
+#define PMIC_FW_VERSION "0.1.4-left"
 #elif defined(STM32F103xB)
 #define PMIC_FW_VERSION "0.1.2-right"
 #else
@@ -332,11 +332,19 @@ static void parse_host_command(const uint8_t *cmd, uint16_t len)
         }
         else if (strcmp(cmd_name, "BAT_SOC") == 0)
         {
+#ifdef PMIC_LEFT_LAYOUT
+            printf("BMS_DISABLED;");
+#else
             printf("BMS_SOC:%d;", BmsSoc[0]);
+#endif
         }
         else if (strcmp(cmd_name, "BAT_SOH") == 0)
         {
+#ifdef PMIC_LEFT_LAYOUT
+            printf("BMS_DISABLED;");
+#else
             printf("BMS_SOH:%d;", BmsSoh[0]);
+#endif
         }
         else if (strcmp(cmd_name, "SYS_INFO") == 0)
         {

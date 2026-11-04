@@ -102,11 +102,6 @@ void app_charge_thread_entry(void *parameter)
 
     while (1)
     {
-#ifdef PMIC_LEFT_LAYOUT
-        app_state_lock();
-        BAT_INST = bsp_pin_read(BOARD_PIN_BAT_INST) ^ 0x01;
-        app_state_unlock();
-#endif
         if (adc_sample() == 0)
         {
             float chrg_i = (float)bsp_adc_values[0] / 4095.0f * 3.3f / 0.4536f;
@@ -153,17 +148,21 @@ void app_charge_thread_entry(void *parameter)
         float est_temp;
         float chrg_v;
         uint8_t exception;
-        uint8_t bat_inst;
+        uint8_t charge_ready;
 
         app_state_lock();
         est_temp = pEnvSecure->estimate_temp;
         chrg_v = CHRG_V;
         exception = pEnvSecure->exception;
-        bat_inst = BAT_INST;
+#ifdef PMIC_LEFT_LAYOUT
+        charge_ready = 0;
+#else
+        charge_ready = BAT_INST;
+#endif
         app_state_unlock();
 
         uint8_t fan;
-        if (chrg_v >= 16.0f && bat_inst && exception == 0)
+        if (chrg_v >= 16.0f && charge_ready && exception == 0)
         {
             if (est_temp <= 50.0f)
             {
@@ -186,7 +185,7 @@ void app_charge_thread_entry(void *parameter)
 
         uint8_t charge_enable = 0;
         uint8_t ictrl = 0;
-        if (chrg_v >= 16.0f && bat_inst && exception == 0)
+        if (chrg_v >= 16.0f && charge_ready && exception == 0)
         {
             ictrl = (uint8_t)(max_current / 5.0f * 70.0f);
             charge_enable = 1;
@@ -194,7 +193,7 @@ void app_charge_thread_entry(void *parameter)
         app_config_set_charge(charge_enable, ictrl);
 
 #ifdef PMIC_LEFT_LAYOUT
-        bsp_pin_write(BOARD_PIN_BAT_G, bat_inst && !exception);
+        bsp_pin_write(BOARD_PIN_BAT_G, charge_ready && !exception);
         bsp_pin_write(BOARD_PIN_BAT_R, exception != 0);
 #else
         bsp_pin_write(BOARD_PIN_IR_EM, 1);

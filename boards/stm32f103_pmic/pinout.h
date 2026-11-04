@@ -13,8 +13,8 @@
 #define BOARD_PIN_KEY1          BSP_PIN(0, 5)
 #endif
 #define BOARD_PIN_CHARGE_EN     BSP_PIN(1, 3)
-#define BOARD_PIN_BAT_INST      BSP_PIN(1, 4)
 #ifndef PMIC_LEFT_LAYOUT
+#define BOARD_PIN_BAT_INST      BSP_PIN(1, 4)
 #define BOARD_PIN_IR_REC        BSP_PIN(1, 6)
 #define BOARD_PIN_IR_EM         BSP_PIN(1, 7)
 #define BOARD_PIN_OLED_SCL      BSP_PIN(1, 1)
