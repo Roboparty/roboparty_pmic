@@ -39,7 +39,9 @@ jobs:
         run: |
           sudo apt-get update -o DPkg::Lock::Timeout=600
           sudo apt-get install -o DPkg::Lock::Timeout=600 -y --no-install-recommends \
-            cmake ninja-build gcc-arm-none-eabi unzip p7zip-full python3
+            cmake ninja-build gcc-arm-none-eabi libnewlib-arm-none-eabi \
+            libstdc++-arm-none-eabi-dev libstdc++-arm-none-eabi-newlib \
+            unzip p7zip-full python3
 
       - name: Restore dependency cache
         id: deps-cache
