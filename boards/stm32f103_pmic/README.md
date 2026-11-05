@@ -71,7 +71,7 @@ normal charge termination; the battery pack's independent cutoff protection
 is required. Without a battery-presence input, EN may assert with an adapter
 connected even when the pack is absent. Stored `CHG_EN`/`ICTRL` values are
 cleared at startup and host writes to those fields are ignored. In the
-unreleased `0.1.7-left` build, the charge thread owns PA4-PA7; host R/G writes
+`0.1.7-left` engineering build, the charge thread owns PA4-PA7; host R/G writes
 are ignored. The PA1 indicator thresholds use the ADC pin voltage, not the
 scaled battery voltage. At exactly 1.39 V PA6 takes priority. The 54 V
 threshold uses the scaled battery/output voltage and only changes the lamp;
@@ -111,7 +111,7 @@ printed in ascending address order, with eight uppercase hex digits each.
 `CHRG_INFO:1;` includes the same SN. `CHRG_SN:<value>;` now replies
 `SN_READ_ONLY;` on STM32F103 and cannot change this hardware ID.
 `FW_VER:1;` returns the compiled firmware identifier
-`FW_VER:0.1.7-left;` in this unreleased build. The test board was last flashed
+`FW_VER:0.1.7-left;` in the release build. The test board was last flashed
 with `0.1.5-left`; the right-schematic variant uses `0.1.2-right`.
 `SW_DATE` is separate writable metadata, not the firmware version.
 
@@ -129,7 +129,7 @@ acts on `;` or 50 ms of input silence. Setting commands have no success ACK.
 | Request | Reply or action |
 | --- | --- |
 | `SN_GET:1;` | `CHRG_SN:<96-bit UID as 24 uppercase hex digits>;` |
-| `FW_VER:1;` | `FW_VER:0.1.7-left;` in this unreleased build |
+| `FW_VER:1;` | `FW_VER:0.1.7-left;` in the release build |
 | `CHRG_INFO:1;` | SN, date, version, config, input/battery readings, charge status |
 | `SYS_INFO:1;` | uptime and thread stack high-water marks |
 | `BAT_INST:1;`, `IR_REC:1;` | On left both return 0 as legacy placeholders; neither input is connected |
