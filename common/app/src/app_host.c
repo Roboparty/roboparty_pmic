@@ -23,7 +23,7 @@
 #define HOST_RX_SIZE     512
 
 #ifdef PMIC_LEFT_LAYOUT
-#define PMIC_FW_VERSION "0.1.7-left"
+#define PMIC_FW_VERSION "0.1.8-left"
 #elif defined(STM32F103xB)
 #define PMIC_FW_VERSION "0.1.2-right"
 #else

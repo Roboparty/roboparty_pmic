@@ -37,7 +37,7 @@ is:
 | --- | --- | --- |
 | PA0/PA1/PA2 | I_IN / U_BAT / U_IN | ADC current / battery / input |
 | PA3 | ICTRL | TIM2_CH4 charge-current PWM |
-| PA4/PA5 | Status LEDs | PA4 green while charging below 54 V battery voltage; PA5 red while charging at or above 54 V |
+| PA4/PA5 | Status LEDs | PA5 green while charging below 54 V battery voltage; PA4 red while charging at or above 54 V; colors verified by SWD GPIO test |
 | PA6/PA7 | BAT_G / BAT_R | PA6 high at PA1 = 1.39-1.50 V; PA7 high at PA1 = 1.21-<1.39 V |
 | PA8 | FAN | TIM1_CH1 PWM |
 | PA9/PA10 | No connected 485/BMS interface | Not configured or used |
@@ -67,12 +67,14 @@ normal charge termination; the battery pack's independent cutoff protection
 is required. Without a battery-presence input, EN may assert with an adapter
 connected even when the pack is absent. Stored `CHG_EN`/`ICTRL` values are
 cleared at startup and host writes to those fields are ignored. In the
-`0.1.7-left` engineering build, the charge thread owns PA4-PA7; host R/G writes
+`0.1.8-left` engineering build, the charge thread owns PA4-PA7; host R/G writes
 are ignored. The PA1 indicator thresholds use the ADC pin voltage, not the
 scaled battery voltage. At exactly 1.39 V PA6 takes priority. The 54 V
 threshold uses the scaled battery/output voltage and only changes the lamp;
 it does not terminate charging. The right layout retains its original BMS and
-PB4 behavior. `0.1.7-left` has not been flashed. The
+PB4 behavior. On 2026-11-05, SWD GPIO tests showed PA4 drives the red charge
+LED and PA5 the green charge LED, correcting the v0.1.7 software mapping.
+PA6 drives the battery green LED and PA7 the battery red LED. The
 `0.1.5-left` hardware results are recorded below.
 
 The host-command guard has a separate offline test. Its host build suppresses
@@ -97,7 +99,30 @@ Use `python3 boards/stm32f103_pmic/tests/hil_charger.py --layout left --self-tes
 for the offline left-layout response contract. The real-port test passed on
 COM82 and through A100 `socket://127.0.0.1:22282` for the flashed
 `0.1.4-left` image on 2026-11-04. The `0.1.5-left` image passed the COM82
-read-only cases and the EN register check on 2026-11-05.
+read-only cases and the EN register check on 2026-11-05. The corrected
+`0.1.8-left` image was flashed and passed 6/6 through A100 on 2026-11-05.
+
+### Current hardware test (2026-11-05)
+
+The Horco CMSIS-DAP `3181740232` confirmed the same STM32F103C8 UID, and
+the preflash 64 KiB image was saved. The `0.1.8-left` application was written
+at `0x08001000`, read back byte for byte (SHA-256
+`a3d6131448d67cc81f71fe9e5819ed3885ee58ea284fc567f558157b6ab8236f`),
+and reset. The bootloader remained unchanged. A100 `22282` read-only HIL
+passed 6/6 and reported `FW_VER:0.1.8-left;`.
+
+With no battery connected, a 5 V Type-C source produced `CHG_V:5.0V`,
+`CHG_EN:0`, `ICTRL:0`, and PA4/PA5 low. The 20 V PD source produced
+`CHRG_V:19.8-19.9V`, `BAT_V:54.6-54.7V`, `CHG_EN:1`, `ICTRL:70`, PA4 high,
+and PA5 low; the user visually confirmed only the charge red LED was on.
+SWD halted the MCU at 5 V input and separately drove each output high:
+PA4 lit the charge red LED, PA5 the charge green LED, PA6 the battery green
+LED, and PA7 the battery red LED. The MCU was reset afterward. Host R/G,
+CHG_EN, and ICTRL writes did not override the automatic state. PA1 was not
+injected because it could not be connected safely; its 1.21, 1.39, and
+1.50 V boundaries passed offline policy tests only. The green charging state
+below 54 V was not reached with the open-circuit output. No loaded charging
+or charge termination was tested.
 
 ### Identity queries
 
@@ -107,8 +132,8 @@ printed in ascending address order, with eight uppercase hex digits each.
 `CHRG_INFO:1;` includes the same SN. `CHRG_SN:<value>;` now replies
 `SN_READ_ONLY;` on STM32F103 and cannot change this hardware ID.
 `FW_VER:1;` returns the compiled firmware identifier
-`FW_VER:0.1.7-left;` in the release build. The test board was last flashed
-with `0.1.5-left`; the right-schematic variant uses `0.1.2-right`.
+`FW_VER:0.1.8-left;` in this build. The previous v0.1.7 image was flashed and
+verified on 2026-11-05; the old alternative build uses `0.1.2-right`.
 `SW_DATE` is separate writable metadata, not the firmware version.
 
 ### Host serial protocol
@@ -125,7 +150,7 @@ acts on `;` or 50 ms of input silence. Setting commands have no success ACK.
 | Request | Reply or action |
 | --- | --- |
 | `SN_GET:1;` | `CHRG_SN:<96-bit UID as 24 uppercase hex digits>;` |
-| `FW_VER:1;` | `FW_VER:0.1.7-left;` in the release build |
+| `FW_VER:1;` | `FW_VER:0.1.8-left;` in this build |
 | `CHRG_INFO:1;` | SN, date, version, config, input/battery readings, charge status |
 | `SYS_INFO:1;` | uptime and thread stack high-water marks |
 | `BAT_INST:1;`, `IR_REC:1;` | On left both return 0 as legacy placeholders; neither input is connected |

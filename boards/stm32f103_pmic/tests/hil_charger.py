@@ -86,7 +86,7 @@ class FakeTransport:
         if self.layout == "left":
             replies.update({
                 "CHRG_INFO": (
-                    "CHRG_SN:HIL-TEST;SW_DATE:2026-11-02-A;FW_VER:0.1.7-left;"
+                    "CHRG_SN:HIL-TEST;SW_DATE:2026-11-02-A;FW_VER:0.1.8-left;"
                     "R:10;G:10;B:10;FAN:0;BAT_INST:0;IR_REC:0;"
                     "CHRG_V:20.0V;CHRG_I:0.0A;BAT_V:24.0V;"
                     "ICTRL:0;CHG_EN:0;"
