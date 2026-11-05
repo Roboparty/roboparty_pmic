@@ -82,20 +82,16 @@ jobs:
         run: |
           set -euo pipefail
           B=build-ci
-          cmake -S boards/stm32f103_pmic/bootloader -B "$B/boot-right" -G Ninja -DCMAKE_BUILD_TYPE=Release
-          cmake --build "$B/boot-right" -j"$(nproc)"
-          cmake -S boards/stm32f103_pmic/bootloader -B "$B/boot-left" -G Ninja -DCMAKE_BUILD_TYPE=Release -DPMIC_LEFT_LAYOUT=ON
-          cmake --build "$B/boot-left" -j"$(nproc)"
+          cmake -S boards/stm32f103_pmic/bootloader -B "$B/boot-stm32f103c8" -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$B/boot-stm32f103c8" -j"$(nproc)"
 
       - name: Build STM32F103 application
         run: |
           set -euo pipefail
           B=build-ci
           TC="$PWD/boards/stm32f103_pmic/cmake/gcc-arm-none-eabi.cmake"
-          cmake -S boards/stm32f103_pmic -B "$B/app-right" -G Ninja -DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release
-          cmake --build "$B/app-right" -j"$(nproc)"
-          cmake -S boards/stm32f103_pmic -B "$B/app-left" -G Ninja -DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release -DPMIC_LEFT_LAYOUT=ON
-          cmake --build "$B/app-left" -j"$(nproc)"
+          cmake -S boards/stm32f103_pmic -B "$B/app-stm32f103c8" -G Ninja -DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$B/app-stm32f103c8" -j"$(nproc)"
 
       - name: Build GD32F503 library
         run: |
@@ -110,14 +106,11 @@ jobs:
       - name: Collect artifacts
         run: |
           set -euo pipefail
-          for v in right left; do
-            mkdir -p "dist/$v"
-            cp "build-ci/boot-$v/boot.bin" "build-ci/boot-$v/boot.hex" "dist/$v/"
-            cp "build-ci/app-$v/ChargeBAT.bin" "build-ci/app-$v/ChargeBAT.hex" "dist/$v/"
-            (cd "dist/$v" && sha256sum boot.bin boot.hex ChargeBAT.bin ChargeBAT.hex > SHA256SUMS)
-            tar -C "dist/$v" -czf "dist/stm32f103_ota_images-$v.tar.gz" .
-          done
-          cp build-ci/gd32-lib/libroboparty_pmic.a dist/
+          mkdir -p dist/stm32f103c8
+          cp build-ci/boot-stm32f103c8/boot.bin build-ci/boot-stm32f103c8/boot.hex dist/stm32f103c8/
+          cp build-ci/app-stm32f103c8/ChargeBAT.bin build-ci/app-stm32f103c8/ChargeBAT.hex dist/stm32f103c8/
+          (cd dist/stm32f103c8 && sha256sum boot.bin boot.hex ChargeBAT.bin ChargeBAT.hex > SHA256SUMS)
+          tar -C dist/stm32f103c8 -czf dist/stm32f103c8_firmware.tar.gz .
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
@@ -146,6 +139,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/*.tar.gz
-            dist/libroboparty_pmic.a
+            dist/stm32f103c8_firmware.tar.gz
           generate_release_notes: true

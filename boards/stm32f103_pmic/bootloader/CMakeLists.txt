@@ -8,7 +8,7 @@ set(CMAKE_SIZE arm-none-eabi-size)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 project(STM32F103_BOOT C ASM)
 
-option(PMIC_LEFT_LAYOUT "Build for the left schematic without SPI flash" OFF)
+option(PMIC_LEFT_LAYOUT "Build for the current STM32F103C8 hardware without SPI flash" ON)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)

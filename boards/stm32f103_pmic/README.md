@@ -1,62 +1,58 @@
 # STM32F103 PMIC firmware
 
-This board target uses RT-Thread 5.3.0 and an STM32F103C8. The bootloader
+The current hardware uses one STM32F103C8 and RT-Thread 5.3.0. The bootloader
 occupies flash from `0x08000000`; the application starts at `0x08001000`.
+The internal `PMIC_LEFT_LAYOUT` name comes from an earlier schematic comparison;
+it selects this hardware by default. GD32F503 is a separate MCU target.
 
 ## Build
 
-Build the bootloader and application with their existing CMake build trees:
+Configure and build the bootloader and application for the current hardware:
 
 ```sh
-cmake --build boards/stm32f103_pmic/bootloader/build -j 4
-cmake --build boards/stm32f103_pmic/build/Release -j 4
-```
-
-The outputs are `bootloader/build/boot.{bin,hex}` and
-`build/Release/ChargeBAT.{bin,hex}`. The release archive is
-`build/stm32f103_ota_images.tar.gz`; `SHA256SUMS` covers its four images.
-
-## Left-schematic variant
-
-The side-by-side MCU screenshot supplied on 2026-11-03 shows a second board
-layout. Build it in separate directories; do not flash these images to the
-right-schematic board:
-
-```sh
-cmake -S boards/stm32f103_pmic -B boards/stm32f103_pmic/build/Left -G Ninja \
+cmake -S boards/stm32f103_pmic/bootloader -B boards/stm32f103_pmic/bootloader/build-current -G Ninja
+cmake --build boards/stm32f103_pmic/bootloader/build-current -j 4
+cmake -S boards/stm32f103_pmic -B boards/stm32f103_pmic/build/Current -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE=boards/stm32f103_pmic/cmake/gcc-arm-none-eabi.cmake \
-  -DCMAKE_BUILD_TYPE=Release -DPMIC_LEFT_LAYOUT=ON
-cmake --build boards/stm32f103_pmic/build/Left -j 4
-cmake -S boards/stm32f103_pmic/bootloader \
-  -B boards/stm32f103_pmic/bootloader/build-left -G Ninja -DPMIC_LEFT_LAYOUT=ON
-cmake --build boards/stm32f103_pmic/bootloader/build-left -j 4
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build boards/stm32f103_pmic/build/Current -j 4
 ```
 
-The left bootloader jumps directly to the application at `0x08001000`; it
-does not probe external SPI flash. The left application rejects `OTA_*`
+The outputs are `bootloader/build-current/boot.{bin,hex}` and
+`build/Current/ChargeBAT.{bin,hex}`. The CI release archive for future tags is
+`stm32f103c8_firmware.tar.gz`; `SHA256SUMS` covers its four images. The
+already-published `v0.1.7` release uses the historical `-left` asset name.
+
+## Historical Build Name
+
+The earlier side-by-side schematic comparison led to the internal `left` and
+`right` names. Only the current STM32F103C8 configuration is the default;
+the old alternative remains in the source tree for reference. The current
+bootloader jumps directly to the application at `0x08001000`; it
+does not probe external SPI flash. The application rejects `OTA_*`
 commands with `OTA_ERR;`. Its GPIO and peripheral mapping from the screenshot
 is:
 
-| Pins | Left-schematic signal | Firmware use |
+| Pins | Current signal | Firmware use |
 | --- | --- | --- |
 | PA0/PA1/PA2 | I_IN / U_BAT / U_IN | ADC current / battery / input |
 | PA3 | ICTRL | TIM2_CH4 charge-current PWM |
 | PA4/PA5 | Status LEDs | PA4 green while charging below 54 V battery voltage; PA5 red while charging at or above 54 V |
 | PA6/PA7 | BAT_G / BAT_R | PA6 high at PA1 = 1.39-1.50 V; PA7 high at PA1 = 1.21-<1.39 V |
 | PA8 | FAN | TIM1_CH1 PWM |
-| PA9/PA10 | No connected 485/BMS interface | Not configured or used on the left layout |
+| PA9/PA10 | No connected 485/BMS interface | Not configured or used |
 | PB3 | EN | Charge enable |
-| PB4 | Unconnected | Not configured or read on the left layout |
+| PB4 | Unconnected | Not configured or read |
 | PB8/PB9 | SCL / SDA | Software I2C for CH224 and TMP100 |
 | PB10/PB11 | USART3_TX/RX | Host protocol and console |
 
-PB0-PB2, PB6-PB7, and PB12-PB15 are shown unconnected on the left. OLED,
+PB0-PB2, PB6-PB7, and PB12-PB15 are shown unconnected. OLED,
 button, infrared, buzzer, SPI flash, BMS communication, and OTA code are excluded or inactive in
 this variant. The `B` color setting has no physical blue LED output. LED
 polarity and the battery-indicator behavior are software assumptions pending
 bench observation; the schematic screenshot only identifies their nets.
 
-The left application and bootloader both compile. See the hardware test below
+The application and bootloader both compile. See the hardware test below
 for the flashed image and serial checks.
 
 Since `0.1.4-left`, PB4 and PA9/PA10 are unused. The left build omits the BMS
