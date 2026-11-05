@@ -29,12 +29,14 @@ int main(void)
     g_config.chg_en = 0;
     g_config.ictrl = 0;
     g_config.r = 0;
+    g_config.g = 0;
 
     UpdateConfigFromCommand("CHG_EN", 1);
     UpdateConfigFromCommand("ICTRL", 80);
     assert(g_config.chg_en == 0 && g_config.ictrl == 0);
 
     UpdateConfigFromCommand("R", 40);
-    assert(g_config.r == 40);
+    UpdateConfigFromCommand("G", 40);
+    assert(g_config.r == 0 && g_config.g == 0);
     return 0;
 }

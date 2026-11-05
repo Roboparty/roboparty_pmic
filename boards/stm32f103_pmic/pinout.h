@@ -4,8 +4,8 @@
 #include "bsp.h"
 
 #ifdef PMIC_LEFT_LAYOUT
-#define BOARD_PIN_LED_R         BSP_PIN(0, 4)
-#define BOARD_PIN_LED_G         BSP_PIN(0, 5)
+#define BOARD_PIN_LED_G         BSP_PIN(0, 4)
+#define BOARD_PIN_LED_R         BSP_PIN(0, 5)
 #define BOARD_PIN_BAT_G         BSP_PIN(0, 6)
 #define BOARD_PIN_BAT_R         BSP_PIN(0, 7)
 #else

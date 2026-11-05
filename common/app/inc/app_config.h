@@ -29,6 +29,9 @@ void ApplyConfig(void);
 void UpdateConfigFromCommand(const char *cmd_name, int value);
 void app_config_set_fan(uint8_t fan);
 void app_config_set_charge(uint8_t enable, uint8_t ictrl);
+#ifdef PMIC_LEFT_LAYOUT
+void app_config_set_status_leds(uint8_t green, uint8_t red);
+#endif
 void app_config_exception_shutdown(void);
 void app_config_lock(void);
 void app_config_unlock(void);

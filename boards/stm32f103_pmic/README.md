@@ -41,8 +41,8 @@ is:
 | --- | --- | --- |
 | PA0/PA1/PA2 | I_IN / U_BAT / U_IN | ADC current / battery / input |
 | PA3 | ICTRL | TIM2_CH4 charge-current PWM |
-| PA4/PA5 | LED_R / LED_G | Digital status LEDs; nonzero R/G means on |
-| PA6/PA7 | BAT_G / BAT_R | BAT_G stays off without BMS; BAT_R shows a latched exception |
+| PA4/PA5 | Status LEDs | PA4 green while charging below 54 V battery voltage; PA5 red while charging at or above 54 V |
+| PA6/PA7 | BAT_G / BAT_R | PA6 high at PA1 = 1.39-1.50 V; PA7 high at PA1 = 1.21-<1.39 V |
 | PA8 | FAN | TIM1_CH1 PWM |
 | PA9/PA10 | No connected 485/BMS interface | Not configured or used on the left layout |
 | PB3 | EN | Charge enable |
@@ -70,10 +70,13 @@ current, and 80 C temperature thresholds are emergency fault limits, not
 normal charge termination; the battery pack's independent cutoff protection
 is required. Without a battery-presence input, EN may assert with an adapter
 connected even when the pack is absent. Stored `CHG_EN`/`ICTRL` values are
-cleared at startup and host writes to those fields are ignored. BAT_G stays
-off because no battery state is available. The right layout retains its
-original BMS and PB4 behavior. `0.1.6-left` changes only the version string
-from the tested `0.1.5-left` behavior; it has not been flashed. The
+cleared at startup and host writes to those fields are ignored. In the
+unreleased `0.1.7-left` build, the charge thread owns PA4-PA7; host R/G writes
+are ignored. The PA1 indicator thresholds use the ADC pin voltage, not the
+scaled battery voltage. At exactly 1.39 V PA6 takes priority. The 54 V
+threshold uses the scaled battery/output voltage and only changes the lamp;
+it does not terminate charging. The right layout retains its original BMS and
+PB4 behavior. `0.1.7-left` has not been flashed. The
 `0.1.5-left` hardware results are recorded below.
 
 The host-command guard has a separate offline test. Its host build suppresses
@@ -108,7 +111,7 @@ printed in ascending address order, with eight uppercase hex digits each.
 `CHRG_INFO:1;` includes the same SN. `CHRG_SN:<value>;` now replies
 `SN_READ_ONLY;` on STM32F103 and cannot change this hardware ID.
 `FW_VER:1;` returns the compiled firmware identifier
-`FW_VER:0.1.6-left;` in the release build. The test board was last flashed
+`FW_VER:0.1.7-left;` in this unreleased build. The test board was last flashed
 with `0.1.5-left`; the right-schematic variant uses `0.1.2-right`.
 `SW_DATE` is separate writable metadata, not the firmware version.
 
@@ -126,7 +129,7 @@ acts on `;` or 50 ms of input silence. Setting commands have no success ACK.
 | Request | Reply or action |
 | --- | --- |
 | `SN_GET:1;` | `CHRG_SN:<96-bit UID as 24 uppercase hex digits>;` |
-| `FW_VER:1;` | `FW_VER:0.1.6-left;` in this release build |
+| `FW_VER:1;` | `FW_VER:0.1.7-left;` in this unreleased build |
 | `CHRG_INFO:1;` | SN, date, version, config, input/battery readings, charge status |
 | `SYS_INFO:1;` | uptime and thread stack high-water marks |
 | `BAT_INST:1;`, `IR_REC:1;` | On left both return 0 as legacy placeholders; neither input is connected |

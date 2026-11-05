@@ -98,6 +98,8 @@ void app_charge_thread_entry(void *parameter)
     uint8_t sample_count = 0;
 #ifdef PMIC_LEFT_LAYOUT
     uint8_t valid_samples = 0;
+    uint8_t adc_valid = 0;
+    float pa1_v = 0.0f;
 #endif
     float sum_bat_v = 0.0f;
     float sum_chrg_i = 0.0f;
@@ -113,6 +115,8 @@ void app_charge_thread_entry(void *parameter)
         if (adc_sample() == 0)
         {
 #ifdef PMIC_LEFT_LAYOUT
+            adc_valid = 1;
+            pa1_v = (float)bsp_adc_values[1] / 4095.0f * 3.3f;
             if (valid_samples < 3U)
             {
                 valid_samples++;
@@ -159,6 +163,7 @@ void app_charge_thread_entry(void *parameter)
 #ifdef PMIC_LEFT_LAYOUT
         else
         {
+            adc_valid = 0;
             valid_samples = 0;
             sample_count = 0;
             sum_bat_v = sum_chrg_i = sum_chrg_v = sum_temp = 0.0f;
@@ -171,12 +176,18 @@ void app_charge_thread_entry(void *parameter)
 
         float est_temp;
         float chrg_v;
+#ifdef PMIC_LEFT_LAYOUT
+        float bat_v;
+#endif
         uint8_t exception;
         uint8_t charge_ready;
 
         app_state_lock();
         est_temp = pEnvSecure->estimate_temp;
         chrg_v = CHRG_V;
+#ifdef PMIC_LEFT_LAYOUT
+        bat_v = BAT_V;
+#endif
         exception = pEnvSecure->exception;
 #ifdef PMIC_LEFT_LAYOUT
         charge_ready = app_left_charge_ready(chrg_v,
@@ -227,8 +238,11 @@ void app_charge_thread_entry(void *parameter)
         app_config_set_charge(charge_enable, ictrl);
 
 #ifdef PMIC_LEFT_LAYOUT
-        bsp_pin_write(BOARD_PIN_BAT_G, 0);
-        bsp_pin_write(BOARD_PIN_BAT_R, exception != 0);
+        uint8_t charge_led = app_left_charge_led(bat_v, charge_enable);
+        uint8_t battery_led = app_left_battery_led(pa1_v, adc_valid);
+        app_config_set_status_leds(charge_led == 1U, charge_led == 2U);
+        bsp_pin_write(BOARD_PIN_BAT_G, battery_led == 1U);
+        bsp_pin_write(BOARD_PIN_BAT_R, battery_led == 2U);
 #else
         bsp_pin_write(BOARD_PIN_IR_EM, 1);
         rt_thread_mdelay(10);

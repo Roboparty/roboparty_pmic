@@ -89,12 +89,28 @@ void app_config_set_charge(uint8_t enable, uint8_t ictrl)
     app_config_unlock();
 }
 
+#ifdef PMIC_LEFT_LAYOUT
+void app_config_set_status_leds(uint8_t green, uint8_t red)
+{
+    app_config_lock();
+    g_config.g = green ? 100U : 0U;
+    g_config.r = red ? 100U : 0U;
+    bsp_pwm_set(BSP_PWM_LED_G, g_config.g);
+    bsp_pwm_set(BSP_PWM_LED_R, g_config.r);
+    app_config_unlock();
+}
+#endif
+
 void app_config_exception_shutdown(void)
 {
     app_config_lock();
     g_config.chg_en = 0;
     g_config.ictrl = 0;
+#ifdef PMIC_LEFT_LAYOUT
+    g_config.r = 0;
+#else
     g_config.r = 80;
+#endif
     g_config.g = 0;
     g_config.b = 0;
     apply_config_locked();
@@ -119,6 +135,8 @@ void app_config_init(void)
     /* The charge thread owns automatic enable after startup checks. */
     g_config.chg_en = 0;
     g_config.ictrl = 0;
+    g_config.r = 0;
+    g_config.g = 0;
 #endif
     ApplyConfig();
 }
@@ -126,7 +144,8 @@ void app_config_init(void)
 void UpdateConfigFromCommand(const char *cmd_name, int value)
 {
 #ifdef PMIC_LEFT_LAYOUT
-    if (strcmp(cmd_name, "CHG_EN") == 0 || strcmp(cmd_name, "ICTRL") == 0)
+    if (strcmp(cmd_name, "CHG_EN") == 0 || strcmp(cmd_name, "ICTRL") == 0 ||
+        strcmp(cmd_name, "R") == 0 || strcmp(cmd_name, "G") == 0)
     {
         return;
     }
