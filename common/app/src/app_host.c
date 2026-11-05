@@ -22,12 +22,12 @@
 
 #define HOST_RX_SIZE     512
 
-#ifdef PMIC_LEFT_LAYOUT
+#ifdef GD32F503
+#define PMIC_FW_VERSION "0.1.0-gd32"
+#elif defined(PMIC_LEFT_LAYOUT)
 #define PMIC_FW_VERSION "0.1.8-left"
 #elif defined(STM32F103xB)
 #define PMIC_FW_VERSION "0.1.2-right"
-#elif defined(GD32F503)
-#define PMIC_FW_VERSION "0.1.0-gd32"
 #else
 #define PMIC_FW_VERSION "unknown"
 #endif

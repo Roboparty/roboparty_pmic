@@ -105,6 +105,8 @@ jobs:
           TC="$PWD/boards/gd32f503_pmic/cmake/gcc-arm-none-eabi.cmake"
           cmake -S boards/gd32f503_pmic -B build-ci/app-gd32f503 -G Ninja -DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release
           cmake --build build-ci/app-gd32f503 -j"$(nproc)"
+          strings build-ci/app-gd32f503/ChargeBAT_GD32.bin | grep -Fxq '0.1.0-gd32'
+          ! strings build-ci/app-gd32f503/ChargeBAT_GD32.bin | grep -Fxq '0.1.8-left'
 
       - name: Collect artifacts
         run: |
