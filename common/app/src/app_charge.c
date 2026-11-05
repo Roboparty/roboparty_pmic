@@ -1,6 +1,9 @@
 #include <rtthread.h>
 
 #include "app_charge.h"
+#ifdef PMIC_LEFT_LAYOUT
+#include "app_charge_policy.h"
+#endif
 #include "app_config.h"
 #include "app_state.h"
 
@@ -49,8 +52,8 @@ static void charge_safety_check(void)
     float bat_v;
     float chrg_i;
     float est_temp;
-    uint16_t soc;
 #ifndef PMIC_LEFT_LAYOUT
+    uint16_t soc;
     uint8_t bat_inst;
     uint8_t ir_rec;
 #endif
@@ -61,18 +64,20 @@ static void charge_safety_check(void)
     bat_v = pEnvSecure->estimate_bat_volt;
     chrg_i = pEnvSecure->estimate_chrg_current;
     est_temp = pEnvSecure->estimate_temp;
-    soc = BmsSoc[0];
 #ifndef PMIC_LEFT_LAYOUT
+    soc = BmsSoc[0];
     bat_inst = BAT_INST;
     ir_rec = IR_REC;
 #endif
     trip = (chrg_v >= 32.0f) ||
+#ifndef PMIC_LEFT_LAYOUT
            (chrg_v >= 5.5f && chrg_v <= 16.0f) ||
+#endif
            (bat_v >= 55.0f) ||
            (est_temp >= 80.0f) ||
-           (chrg_i >= 6.0f) ||
-           (chrg_v >= 16.0f && soc == 100)
+           (chrg_i >= 6.0f)
 #ifndef PMIC_LEFT_LAYOUT
+           || (chrg_v >= 16.0f && soc == 100)
            || (bat_inst == 0 && ir_rec == 1)
 #endif
            ;
@@ -91,6 +96,9 @@ static void charge_safety_check(void)
 void app_charge_thread_entry(void *parameter)
 {
     uint8_t sample_count = 0;
+#ifdef PMIC_LEFT_LAYOUT
+    uint8_t valid_samples = 0;
+#endif
     float sum_bat_v = 0.0f;
     float sum_chrg_i = 0.0f;
     float sum_chrg_v = 0.0f;
@@ -104,6 +112,12 @@ void app_charge_thread_entry(void *parameter)
     {
         if (adc_sample() == 0)
         {
+#ifdef PMIC_LEFT_LAYOUT
+            if (valid_samples < 3U)
+            {
+                valid_samples++;
+            }
+#endif
             float chrg_i = (float)bsp_adc_values[0] / 4095.0f * 3.3f / 0.4536f;
             float bat_v = (float)bsp_adc_values[1] / 4095.0f * 3.3f / 0.0449f;
             float chrg_v = (float)bsp_adc_values[2] / 4095.0f * 3.3f / 0.0909f;
@@ -142,6 +156,16 @@ void app_charge_thread_entry(void *parameter)
                 CH224_ReRequestPPS();
             }
         }
+#ifdef PMIC_LEFT_LAYOUT
+        else
+        {
+            valid_samples = 0;
+            sample_count = 0;
+            sum_bat_v = sum_chrg_i = sum_chrg_v = sum_temp = 0.0f;
+        }
+
+        charge_safety_check();
+#endif
 
         float max_current = CH224_ReadCurrent() * 0.05f;
 
@@ -155,7 +179,11 @@ void app_charge_thread_entry(void *parameter)
         chrg_v = CHRG_V;
         exception = pEnvSecure->exception;
 #ifdef PMIC_LEFT_LAYOUT
-        charge_ready = 0;
+        charge_ready = app_left_charge_ready(chrg_v,
+                                             pEnvSecure->estimate_bat_volt,
+                                             pEnvSecure->estimate_chrg_current,
+                                             est_temp, max_current,
+                                             valid_samples, exception);
 #else
         charge_ready = BAT_INST;
 #endif
@@ -187,13 +215,19 @@ void app_charge_thread_entry(void *parameter)
         uint8_t ictrl = 0;
         if (chrg_v >= 16.0f && charge_ready && exception == 0)
         {
+#ifdef PMIC_LEFT_LAYOUT
+            if (max_current > 5.0f)
+            {
+                max_current = 5.0f;
+            }
+#endif
             ictrl = (uint8_t)(max_current / 5.0f * 70.0f);
             charge_enable = 1;
         }
         app_config_set_charge(charge_enable, ictrl);
 
 #ifdef PMIC_LEFT_LAYOUT
-        bsp_pin_write(BOARD_PIN_BAT_G, charge_ready && !exception);
+        bsp_pin_write(BOARD_PIN_BAT_G, 0);
         bsp_pin_write(BOARD_PIN_BAT_R, exception != 0);
 #else
         bsp_pin_write(BOARD_PIN_IR_EM, 1);
@@ -206,7 +240,9 @@ void app_charge_thread_entry(void *parameter)
         app_state_unlock();
 #endif
 
+#ifndef PMIC_LEFT_LAYOUT
         charge_safety_check();
+#endif
 
         rt_thread_mdelay(300);
     }

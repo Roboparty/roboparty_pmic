@@ -60,12 +60,21 @@ The left application and bootloader both compile. See the hardware test below
 for the flashed image and serial checks.
 
 Since `0.1.4-left`, PB4 and PA9/PA10 are unused. The left build omits the BMS
-driver and thread and does not initialize USART1. There is no validated
-battery-presence or state-of-charge input, so charging stays disabled: PB3 EN
-and PA3 ICTRL remain off. Stored `CHG_EN`/`ICTRL` values are cleared at startup
-and host writes to those fields are ignored. The right layout retains its
-original BMS and PB4 behavior. The `0.1.4-left` flash and serial checks are
-recorded below; analog accuracy and loaded charging remain unverified.
+driver and thread and does not initialize USART1. In `0.1.6-left`, the charge
+thread automatically enables PB3 EN and sets PA3 ICTRL
+after three consecutive ADC samples when input voltage is 16-32 V, CH224
+reports nonzero adapter current, and no fault is latched. It limits the
+computed ICTRL setting to 70%. Below 16 V, above 32 V, on an ADC failure,
+or on a CH224 read failure, it turns charging off. The 55 V battery, 6 A
+current, and 80 C temperature thresholds are emergency fault limits, not
+normal charge termination; the battery pack's independent cutoff protection
+is required. Without a battery-presence input, EN may assert with an adapter
+connected even when the pack is absent. Stored `CHG_EN`/`ICTRL` values are
+cleared at startup and host writes to those fields are ignored. BAT_G stays
+off because no battery state is available. The right layout retains its
+original BMS and PB4 behavior. `0.1.6-left` changes only the version string
+from the tested `0.1.5-left` behavior; it has not been flashed. The
+`0.1.5-left` hardware results are recorded below.
 
 The host-command guard has a separate offline test. Its host build suppresses
 an existing signedness warning in the unrelated Flash-save function:
@@ -79,11 +88,17 @@ gcc -std=c11 -Wall -Wextra -Werror -Wno-error=sign-compare \
   common/app/src/app_config.c -Wl,--gc-sections \
   -o ../../test/tmp/pmic-charge-commands
 ../../test/tmp/pmic-charge-commands
+gcc -std=c11 -Wall -Wextra -Werror -Icommon/app/inc \
+  boards/stm32f103_pmic/tests/charge_guard/test_auto_enable.c \
+  -o ../../test/tmp/pmic-auto-enable
+../../test/tmp/pmic-auto-enable
 ```
 
 Use `python3 boards/stm32f103_pmic/tests/hil_charger.py --layout left --self-test`
 for the offline left-layout response contract. The real-port test passed on
-COM82 and through A100 `socket://127.0.0.1:22282` on 2026-11-04.
+COM82 and through A100 `socket://127.0.0.1:22282` for the flashed
+`0.1.4-left` image on 2026-11-04. The `0.1.5-left` image passed the COM82
+read-only cases and the EN register check on 2026-11-05.
 
 ### Identity queries
 
@@ -93,7 +108,8 @@ printed in ascending address order, with eight uppercase hex digits each.
 `CHRG_INFO:1;` includes the same SN. `CHRG_SN:<value>;` now replies
 `SN_READ_ONLY;` on STM32F103 and cannot change this hardware ID.
 `FW_VER:1;` returns the compiled firmware identifier
-`FW_VER:0.1.4-left;`; the right-schematic variant uses `0.1.2-right`.
+`FW_VER:0.1.6-left;` in the release build. The test board was last flashed
+with `0.1.5-left`; the right-schematic variant uses `0.1.2-right`.
 `SW_DATE` is separate writable metadata, not the firmware version.
 
 ### Host serial protocol
@@ -110,7 +126,7 @@ acts on `;` or 50 ms of input silence. Setting commands have no success ACK.
 | Request | Reply or action |
 | --- | --- |
 | `SN_GET:1;` | `CHRG_SN:<96-bit UID as 24 uppercase hex digits>;` |
-| `FW_VER:1;` | `FW_VER:0.1.4-left;` |
+| `FW_VER:1;` | `FW_VER:0.1.6-left;` in this release build |
 | `CHRG_INFO:1;` | SN, date, version, config, input/battery readings, charge status |
 | `SYS_INFO:1;` | uptime and thread stack high-water marks |
 | `BAT_INST:1;`, `IR_REC:1;` | On left both return 0 as legacy placeholders; neither input is connected |
@@ -125,6 +141,30 @@ The `B` setting is retained for protocol compatibility but has no physical
 blue LED on the left layout. An empty `SW_DATE` is expected until set and
 saved. Send one request at a time and wait for its terminating `;` fields;
 short TCP sessions through the serial bridge can lose a single request.
+
+### Left-board 0.1.5 build (2026-11-05)
+
+The automatic-enable policy and host-command guard tests passed on A100.
+The left application compiled and linked at 41,436 bytes Flash / 16,096
+bytes RAM. Its `ChargeBAT.bin` SHA-256 is
+`44b8e871253a8c835983d2a74f818100efa88a6d888e7deb9c53720e91f00773`.
+The right-layout application was rebuilt with the unchanged SHA-256
+`0ec303c48d95daaa94d04e94523528e9cc05f79b0e177f9a86e924903349878f`.
+Horco CMSIS-DAP `3181740232` matched UID `0669FF55 55537872 87104058`.
+The prior application was backed up and matched the `0.1.4-left` SHA-256.
+pyOCD programmed only the application at `0x08001000`; the 41,436-byte
+readback matched `0.1.5-left` byte for byte, and the config page remained
+erased. The probe then reset and resumed the target. COM82 returned the new
+version and matching UID; the read-only HIL test passed 6/6.
+
+With a 5 V-only Type-C source, `CHRG_V` was 5.1 V, `CHG_EN` and `ICTRL` were
+0, PB3 output was low, and TIM2 CCR4 was 0. After switching to a PD source,
+`CHRG_V` was 19.8-20.0 V, `CHG_EN` was 1, `ICTRL` was 70, PB3 output was high,
+and TIM2 CCR4 was 5040. Ten status reads over about 20 seconds were complete;
+`BAT_V` was 54.5-54.8 V and indicated current was 0.0-0.1 A. The battery pack
+was not connected, so this was an open-circuit output test. These are MCU
+reported values; external EN voltage, actual charge current, temperature,
+and charge termination have not been measured.
 
 ### Left-board 0.1.4 hardware test (2026-11-04)
 

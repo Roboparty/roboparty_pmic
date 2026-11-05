@@ -116,7 +116,7 @@ void app_config_init(void)
     }
 
 #ifdef PMIC_LEFT_LAYOUT
-    /* Charging stays off until the BMS thread has confirmed fresh data. */
+    /* The charge thread owns automatic enable after startup checks. */
     g_config.chg_en = 0;
     g_config.ictrl = 0;
 #endif
