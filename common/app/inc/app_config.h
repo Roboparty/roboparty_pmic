@@ -3,7 +3,11 @@
 
 #include "app_types.h"
 
+#ifdef GD32F503
+#define CFG_FLASH_ADDR   0x08078000U
+#else
 #define CFG_FLASH_ADDR   0x0800FC00U
+#endif
 #define CFG_MAGIC_NUMBER 0xAA55U
 #define CFG_SAVE_BYTES   36U
 

@@ -126,6 +126,12 @@ void app_charge_thread_entry(void *parameter)
             float bat_v = (float)bsp_adc_values[1] / 4095.0f * 3.3f / 0.0449f;
             float chrg_v = (float)bsp_adc_values[2] / 4095.0f * 3.3f / 0.0909f;
             float temperature = TMP100_GetTemperature();
+#ifdef GD32F503
+            if (temperature < -40.0f)
+            {
+                temperature = 80.0f;
+            }
+#endif
 
             app_state_lock();
             CHRG_I = chrg_i;
@@ -199,6 +205,10 @@ void app_charge_thread_entry(void *parameter)
         charge_ready = BAT_INST;
 #endif
         app_state_unlock();
+
+#if defined(GD32F503) && !defined(PMIC_GD32_HARDWARE_VERIFIED)
+        charge_ready = 0U;
+#endif
 
         uint8_t fan;
         if (chrg_v >= 16.0f && charge_ready && exception == 0)

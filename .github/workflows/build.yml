@@ -93,15 +93,18 @@ jobs:
           cmake -S boards/stm32f103_pmic -B "$B/app-stm32f103c8" -G Ninja -DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release
           cmake --build "$B/app-stm32f103c8" -j"$(nproc)"
 
-      - name: Build GD32F503 library
+      - name: Build GD32F503 bootloader
         run: |
           set -euo pipefail
-          B=build-ci/gd32-lib
-          cmake -S . -B "$B" -G Ninja \
-            -DCMAKE_C_COMPILER=arm-none-eabi-gcc \
-            -DCMAKE_CXX_COMPILER=arm-none-eabi-g++ \
-            -DCMAKE_ASM_COMPILER=arm-none-eabi-gcc
-          cmake --build "$B" -j"$(nproc)"
+          cmake -S boards/gd32f503_pmic/bootloader -B build-ci/boot-gd32f503 -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-ci/boot-gd32f503 -j"$(nproc)"
+
+      - name: Build GD32F503 application
+        run: |
+          set -euo pipefail
+          TC="$PWD/boards/gd32f503_pmic/cmake/gcc-arm-none-eabi.cmake"
+          cmake -S boards/gd32f503_pmic -B build-ci/app-gd32f503 -G Ninja -DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-ci/app-gd32f503 -j"$(nproc)"
 
       - name: Collect artifacts
         run: |
@@ -111,6 +114,12 @@ jobs:
           cp build-ci/app-stm32f103c8/ChargeBAT.bin build-ci/app-stm32f103c8/ChargeBAT.hex dist/stm32f103c8/
           (cd dist/stm32f103c8 && sha256sum boot.bin boot.hex ChargeBAT.bin ChargeBAT.hex > SHA256SUMS)
           tar -C dist/stm32f103c8 -czf dist/stm32f103c8_firmware.tar.gz .
+          mkdir -p dist/gd32f503
+          cp build-ci/boot-gd32f503/boot.bin build-ci/boot-gd32f503/boot.hex dist/gd32f503/
+          cp build-ci/app-gd32f503/ChargeBAT_GD32.bin build-ci/app-gd32f503/ChargeBAT_GD32.hex dist/gd32f503/
+          (cd dist/gd32f503 && sha256sum boot.bin boot.hex ChargeBAT_GD32.bin ChargeBAT_GD32.hex > SHA256SUMS)
+          tar -C dist/gd32f503 -czf dist/gd32f503_firmware.tar.gz .
+          test "$(find dist -maxdepth 1 -name '*_firmware.tar.gz' | wc -l)" -eq 2
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
@@ -121,7 +130,7 @@ jobs:
           retention-days: 30
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && vars.GD32_HARDWARE_VERIFIED == 'true'
     needs: build
     runs-on: ubuntu-latest
 
@@ -140,4 +149,5 @@ jobs:
         with:
           files: |
             dist/stm32f103c8_firmware.tar.gz
+            dist/gd32f503_firmware.tar.gz
           generate_release_notes: true

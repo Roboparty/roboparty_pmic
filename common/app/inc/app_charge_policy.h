@@ -20,7 +20,7 @@ static inline uint8_t app_left_charge_led(float battery_v, uint8_t charge_enable
     {
         return 0U;
     }
-    return battery_v >= 54.0f ? 2U : 1U; /* 1: PA4 green, 2: PA5 red */
+    return battery_v >= 54.0f ? 2U : 1U; /* 1: PA5 green, 2: PA4 red */
 }
 
 static inline uint8_t app_left_battery_led(float pa1_v, uint8_t sample_valid)

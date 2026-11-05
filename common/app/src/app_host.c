@@ -15,7 +15,7 @@
 #ifdef STM32F103xB
 #include "stm32f103xb.h"
 #endif
-#ifndef PMIC_LEFT_LAYOUT
+#if !defined(PMIC_LEFT_LAYOUT) || defined(GD32F503)
 #include "ota.h"
 #include "ota_storage.h"
 #endif
@@ -26,6 +26,8 @@
 #define PMIC_FW_VERSION "0.1.8-left"
 #elif defined(STM32F103xB)
 #define PMIC_FW_VERSION "0.1.2-right"
+#elif defined(GD32F503)
+#define PMIC_FW_VERSION "0.1.0-gd32"
 #else
 #define PMIC_FW_VERSION "unknown"
 #endif
@@ -39,6 +41,11 @@ static void print_serial_number(void)
     printf("CHRG_SN:%08lX%08lX%08lX;",
            (unsigned long)uid[0], (unsigned long)uid[1],
            (unsigned long)uid[2]);
+#elif defined(GD32F503)
+    const volatile uint32_t *uid = (const volatile uint32_t *)0x1FFFF7E8U;
+    printf("CHRG_SN:%08lX%08lX%08lX;",
+           (unsigned long)uid[0], (unsigned long)uid[1],
+           (unsigned long)uid[2]);
 #else
     app_config_lock();
     printf("CHRG_SN:%.16s;", g_config.str_chrg_sn);
@@ -46,7 +53,7 @@ static void print_serial_number(void)
 #endif
 }
 
-#ifndef PMIC_LEFT_LAYOUT
+#if !defined(PMIC_LEFT_LAYOUT) || defined(GD32F503)
 static uint32_t ota_size;
 static uint32_t ota_expected_crc;
 static uint32_t ota_calc_crc;
@@ -95,7 +102,7 @@ void app_host_init(void)
     rt_device_control(host_dev, RT_DEVICE_CTRL_CONFIG, &cfg);
     rt_device_open(host_dev, RT_DEVICE_FLAG_RDWR | RT_DEVICE_FLAG_INT_RX);
 
-#ifndef PMIC_LEFT_LAYOUT
+#if !defined(PMIC_LEFT_LAYOUT) || defined(GD32F503)
     ota_storage_init();
 #endif
 }
@@ -151,7 +158,7 @@ static void parse_host_command(const uint8_t *cmd, uint16_t len)
         memcpy(data_str, data_start, data_len);
         data_str[data_len] = '\0';
 
-#ifndef PMIC_LEFT_LAYOUT
+#if !defined(PMIC_LEFT_LAYOUT) || defined(GD32F503)
         if (strcmp(cmd_name, "OTA_BEGIN") == 0)
         {
             unsigned long size = 0;
@@ -165,13 +172,22 @@ static void parse_host_command(const uint8_t *cmd, uint16_t len)
                 ota_expected_crc = (uint32_t)crc;
                 ota_calc_crc = OTA_CRC32_INIT;
                 ota_offset = 0U;
-                ota_active = 1U;
+                ota_active = 0U;
 
-                ota_storage_erase(0U, OTA_PAYLOAD_OFFSET + ota_size);
                 ota_header_fill(&header, ota_size, ota_expected_crc,
                                 OTA_APP_ENTRY, 1U);
-                ota_storage_write(0U, (const uint8_t *)&header, sizeof(header));
-                printf("OTA_READY;");
+                if (ota_storage_erase(0U, OTA_PAYLOAD_OFFSET + ota_size) == 0 &&
+                    ota_storage_write(0U, (const uint8_t *)&header,
+                                      sizeof(header)) == 0)
+                {
+                    ota_active = 1U;
+                    printf("OTA_READY;");
+                }
+                else
+                {
+                    ota_storage_invalidate();
+                    printf("OTA_ERR;");
+                }
             }
             else
             {
@@ -189,12 +205,25 @@ static void parse_host_command(const uint8_t *cmd, uint16_t len)
                 uint32_t offset = (uint32_t)strtoul(data_str, NULL, 0);
                 count = hex_decode(comma + 1, buffer, sizeof(buffer));
 
-                if (count > 0 && (offset + (uint32_t)count) <= ota_size)
+                if (count > 0 && offset == ota_offset &&
+                    (offset + (uint32_t)count) <= ota_size &&
+                    (((uint32_t)count & 1U) == 0U ||
+                     (offset + (uint32_t)count) == ota_size))
                 {
-                    ota_storage_write(OTA_PAYLOAD_OFFSET + offset, buffer, (uint32_t)count);
-                    ota_calc_crc = ota_crc32_update(ota_calc_crc, buffer, (uint32_t)count);
-                    ota_offset = offset + (uint32_t)count;
-                    printf("OTA_ACK:%lu;", (unsigned long)ota_offset);
+                    if (ota_storage_write(OTA_PAYLOAD_OFFSET + offset,
+                                          buffer, (uint32_t)count) == 0)
+                    {
+                        ota_calc_crc = ota_crc32_update(ota_calc_crc, buffer,
+                                                        (uint32_t)count);
+                        ota_offset = offset + (uint32_t)count;
+                        printf("OTA_ACK:%lu;", (unsigned long)ota_offset);
+                    }
+                    else
+                    {
+                        ota_active = 0U;
+                        ota_storage_invalidate();
+                        printf("OTA_ERR;");
+                    }
                 }
                 else
                 {
@@ -313,7 +342,7 @@ static void parse_host_command(const uint8_t *cmd, uint16_t len)
         }
         else if (strcmp(cmd_name, "CHRG_SN") == 0)
         {
-#ifdef STM32F103xB
+#if defined(STM32F103xB) || defined(GD32F503)
             printf("SN_READ_ONLY;");
 #else
             app_config_lock();

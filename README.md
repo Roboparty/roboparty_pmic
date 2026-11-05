@@ -1,20 +1,23 @@
 # RP1.4 背板电源管理芯片（PMIC）
 
-> 基于 GD32F503 与 RT-Thread 5.3.0 的 RP1.4 背板电源管理固件。
+> GD32F503VET6 参考充电固件使用 RT-Thread 5.3.0；引脚由软件先定义，尚无对应实板确认。
 
 | 状态 | MCU | RTOS | 对外接口 |
 | --- | --- | --- | --- |
-| 开发中（骨架） | GD32F503 / Cortex-M33 | RT-Thread 5.3.0 | BMS RS-485 + SoC Modbus |
+| 可交叉编译，未做 GD32 实板验证 | GD32F503VET6 / Cortex-M33 | RT-Thread 5.3.0 | 115200 UART 命令、内部 Flash OTA |
 
-PMIC 负责采集背板 12 V / 24 V / 48 V 输出电压，管理主副 BMS 通信，向 RK3588 SoC 提供 Modbus 数据，并将运行与故障日志保存到 SPI Flash。
+原规划是采集背板 12 V / 24 V / 48 V 输出电压、管理主副 BMS、提供 Modbus 数据及 SPI Flash 日志。当前 GD32 参考镜像实现的是 USB-PD 充电控制和文本串口协议，不包含这些原规划模块。
 
-> 当前仓库仍处于骨架阶段：调试串口与板级启动可用，BMS 协议类已实现但未接入 `main()`，Modbus、ADC、SPI Flash、故障策略与 OTA 尚未实现。详见[当前状态](#当前状态)。
+> 本次新增的 `boards/gd32f503_pmic/CMakeLists.txt` 可链接 bootloader 和充电应用。下文原有 BMS/Modbus/SPI Flash 架构仍是另一套设计目标，不能据此认为这些功能已进入 GD32 充电镜像。默认构建会强制保持充电 EN 关闭；仅当实板引脚、ADC 分压和带载保护验证完成后，才可用 `-DPMIC_GD32_HARDWARE_VERIFIED=ON` 重新构建。GitHub Release 另需仓库变量 `GD32_HARDWARE_VERIFIED=true`，避免发布未验证镜像。
 
 ## 当前状态
 
 | 模块 | 状态 | 说明 |
 | --- | --- | --- |
-| 板级启动 / SysTick / 控制台 | 可用 | `boards/gd32f503_pmic/board.c`，控制台为 `uart0` |
+| 板级启动 / SysTick / 控制台 | 编译通过，未实测 | `boards/gd32f503_pmic/board.c`，USART0 注册为 `uart3` |
+| 充电 ADC / PWM / GPIO / UART 协议 | 编译通过，未实测 | 复用 STM32 左板应用，GD32 驱动位于 `boards/gd32f503_pmic/drivers/` |
+| 内部 Flash OTA | 编译通过，未实测 | boot/app/staging/config 分区位于 512 KB Flash 内 |
+| 芯片 UID / 固件版本 | 编译通过，未实测 | `SN_GET:1;` 读取 96 位 UID，版本为 `0.1.0-gd32` |
 | BMS `0x31` 查询与 CRC 校验 | 已实现，未接入 | `src/scud_bms_rtt.cpp`，尚未在 `main()` 中实例化 |
 | BMS `0x61` 查询 | 未实现 | 协议已约定，代码未实现 |
 | 副 BMS 管理 | 未实现 | 型号与总线拓扑待确认 |
@@ -22,9 +25,9 @@ PMIC 负责采集背板 12 V / 24 V / 48 V 输出电压，管理主副 BMS 通�
 | 12 V / 24 V / 48 V ADC | 未启用 | Kconfig 默认关闭，分压参数待定 |
 | SPI Flash 日志 / OTA | 未启用 | 分区与磨损均衡策略待定 |
 | 故障三帧确认策略 | 设计完成，未实现 | 见[故障策略](#故障策略) |
-| 可烧录固件 | 未完成 | 当前 CMake 仅生成 `libroboparty_pmic.a` |
+| 可链接固件 | 已生成，未烧录 | GD32 bootloader 与 `ChargeBAT_GD32.bin`；旧的顶层 CMake 静态库仍保留 |
 
-## 系统架构
+## 原规划系统架构
 
 ```mermaid
 flowchart LR
@@ -42,10 +45,10 @@ flowchart LR
 | 项目 | 定义 | 依据 |
 | --- | --- | --- |
 | MCU | GD32F503，Cortex-M33 | `CMakeLists.txt` |
-| Flash / SRAM | 512 KB / 128 KB | `boards/gd32f503_pmic/linker_scripts/link.ld` |
-| 封装 | 待确认 | 需核对实际物料 |
+| Flash / SRAM | 512 KB / 64 KB | [GD32F503VET6 数据手册](https://www.gd32mcu.com/data/documents/datasheet/GD32F503xx_Datasheet_Rev0.9RC6.pdf)与链接脚本 |
+| 封装 | LQFP100（参考目标） | 同上 |
 | RTOS | RT-Thread 5.3.0 | `inc/rtconfig.h`（`RT_VER_NUM 0x50300`） |
-| 调试串口 | USART0，115200 8N1 | `BSP_UART0_*` |
+| 主机串口 | USART0，115200 8N1 | PA9/PA10，注册为 `uart3` |
 | 主 BMS | 飞毛腿（SCUD）21700 电池包，UART 转 RS-485 | 项目设计 |
 | 副 BMS | 待选型 | 项目设计 |
 | SoC | RK3588，UART + Modbus RTU | 项目设计 |
@@ -54,16 +57,25 @@ flowchart LR
 
 ## 引脚分配
 
-固件中真正落地的引脚只有调试串口。`boards/gd32f503_pmic/Kconfig` 中 UART1～UART3 的 `PA8/PA9` 是模板默认值，**不代表本板实际连接**；下表“待分配”项必须以原理图/线束图为准，确认后再写入 `rtconfig.h`。
+以下是新充电应用的软件引脚约定，尚无 GD32 原理图。`Kconfig` 中旧的 GD32E503 模板配置不是该 CMake 工程的依据。
 
 ### 已配置
 
 | 用途 | 信号 | 外设 | 引脚 | 复用 | 固件配置 |
 | --- | --- | --- | --- | --- | --- |
-| 调试控制台 | UART0_TX | USART0 | PA9 | AF1 | `BSP_UART0_TX_PIN` |
-| 调试控制台 | UART0_RX | USART0 | PA10 | AF1 | `BSP_UART0_RX_PIN` |
+| 主机串口 TX | UART_TX | USART0 | PA9 | AF0 | `uart3` |
+| 主机串口 RX | UART_RX | USART0 | PA10 | AF0 | `uart3` |
+| 充电电流采样 | CHRG_I | ADC0 | PA0 | 模拟 | `bsp_adc_values[0]` |
+| 电池电压采样 | BAT_V | ADC0 | PA1 | 模拟 | `bsp_adc_values[1]` |
+| 充电输入采样 | CHRG_V | ADC0 | PA2 | 模拟 | `bsp_adc_values[2]` |
+| 充电电流控制 | ICTRL | TIMER16_CH1 | PA3 | AF2 | PWM，上电 0 |
+| 充电红/绿灯 | LED_R / LED_G | GPIO | PA4 / PA5 | GPIO | 高电平亮 |
+| 电池绿/红灯 | BAT_G / BAT_R | GPIO | PA6 / PA7 | GPIO | 高电平亮 |
+| 风扇 | FAN | TIMER0_CH0 | PA8 | AF1 | PWM |
+| 充电使能 | CHG_EN | GPIO | PB3 | GPIO | 高电平使能，上电低 |
+| PD 与温度 I2C | SCL / SDA | GPIO | PB8 / PB9 | 开漏 | CH224 / TMP100 软件 I2C |
 
-串口参数为 115200 baud、8N1，控制台设备名为 `uart0`。
+串口参数为 115200 baud、8N1。该软件约定要求外部 8 MHz HXTAL、与 STM32 左板相同的 ADC 分压比及外部电源电路；这些硬件条件尚未核对。
 
 ### 调试接口
 
@@ -72,7 +84,7 @@ flowchart LR
 | SWD 调试 | SWDIO | PA13 | 芯片默认调试口，最终以数据手册为准 |
 | SWD 调试 | SWCLK | PA14 | 同上 |
 
-### 待分配
+### 原规划待分配（不属于参考充电镜像）
 
 | 用途 | 信号 | 建议外设 | 引脚 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -148,19 +160,19 @@ MCU 作为 Modbus RTU 从站，地址为 `0x01`，响应 RK3588 的读取请求�
 
 SPI Flash 计划保存 `routine_log`、`exception_log`、`MCU_OTA_BIN` 以及主副 BMS 升级镜像。运行日志周期写入，故障事件立即写入。日志字段包括 `ts`、`type`、`level`、`module`、`event`、`msg` 和 `detail`。
 
-系统需要支持量产烧录、MCU OTA、主 BMS OTA、副 BMS OTA、完整性校验和失败回滚。当前尚未实现分区表、磨损均衡、签名校验和回滚机制。
+参考充电镜像使用 GD32 内部 Flash 的 boot/app/staging/config 分区实现 MCU OTA；主副 BMS OTA、SPI Flash 日志、签名校验和失败回滚仍未实现。
 
 ## 工程结构
 
 ```text
-boards/gd32f503_pmic/       板级启动、时钟、Kconfig 和链接脚本
-src/                         PMIC 应用入口与 BMS 适配
-inc/                         rtconfig.h 与项目头文件
+boards/gd32f503_pmic/       GD32 充电应用、驱动、bootloader、链接脚本
+src/                         旧静态库入口与 BMS 适配（不进入充电镜像）
+inc/                         旧静态库配置
 thirdparty/
   GD32F50x_Firmware_Library_V1.0.3/  GD32F503 厂商 SDK（已解压）
   GD32F50x_Firmware_Library_V1.0.3.7z  原始 SDK 压缩包
   roboparty_bms/             BMS 协议参考实现（git submodule）
-CMakeLists.txt               编译验证入口
+CMakeLists.txt               旧静态库编译入口
 env.ps1                      RT-Thread 和 SDK 环境变量
 PROJECT_LAYOUT.md            目录迁移说明
 ```
@@ -173,24 +185,24 @@ git submodule update --init --recursive
 
 ## 构建
 
-依赖：`arm-none-eabi-gcc`、CMake、Ninja，以及 `D:\env\rt-thread-5.3.0\rt-thread-5.3.0` 下的 RT-Thread 5.3.0 源码。
+依赖：`arm-none-eabi-gcc`、CMake、Ninja、RT-Thread 5.3.0 源码及仓库的 GD32 SDK 压缩包。Windows 可用 `D:\env\rt-thread-5.3.0\rt-thread-5.3.0` 设置 `RTT_ROOT`；CI 自动准备依赖。
 
 ```powershell
-. .\env.ps1
-cmake -S . -B build-scud -G Ninja `
-  -DCMAKE_C_COMPILER=arm-none-eabi-gcc `
-  -DCMAKE_CXX_COMPILER=arm-none-eabi-g++ `
-  -DCMAKE_ASM_COMPILER=arm-none-eabi-gcc
-cmake --build build-scud
+$env:RTT_ROOT = 'D:\env\rt-thread-5.3.0\rt-thread-5.3.0'
+cmake -S boards/gd32f503_pmic/bootloader -B build-gd32-boot -G Ninja
+cmake --build build-gd32-boot
+cmake -S boards/gd32f503_pmic -B build-gd32-app -G Ninja `
+  -DCMAKE_TOOLCHAIN_FILE=boards/gd32f503_pmic/cmake/gcc-arm-none-eabi.cmake
+cmake --build build-gd32-app
 ```
 
-当前构建只做编译验证，产物为 `libroboparty_pmic.a`，不生成 `.elf` / `.bin` / `.hex`。生成可烧录固件前，还需接入启动文件、向量表、完整链接布局和 RT-Thread 驱动。
+产物为 `boot.bin/hex` 与 `ChargeBAT_GD32.bin/hex`。CI 同时打包 STM32F103C8 和 GD32F503 两份固件；GD32 默认镜像仅供软件验证，充电 EN 被强制关闭。没有实板验证时 Release 门禁保持关闭。
 
 ## 待确认项
 
 硬件：
 
-- GD32F503 具体封装、Flash/RAM 容量与量产物料型号。
+- 实板芯片是否采用参考目标 GD32F503VET6，晶振和电源是否匹配。
 - `boards/gd32f503_pmic/Kconfig` 仍沿用 GD32E503VE 模板，需改为 GD32F503 实际系列/型号。
 - 主副 BMS 型号、总线拓扑和 OTA 协议。
 - 12 V、24 V、48 V 的 ADC 引脚、分压参数和采样周期。
