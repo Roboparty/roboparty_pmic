@@ -101,6 +101,26 @@ COM82 and through A100 `socket://127.0.0.1:22282` for the flashed
 `0.1.4-left` image on 2026-11-04. The `0.1.5-left` image passed the COM82
 read-only cases and the EN register check on 2026-11-05. The corrected
 `0.1.8-left` image was flashed and passed 6/6 through A100 on 2026-11-05.
+The `0.1.9-left` image was flashed and passed 6/6 on 2026-11-06.
+
+### Fault-field flash and OTA rejection test (2026-11-06)
+
+At 5 V input, no battery connected, `CHG_EN:0` and `CHRG_I:0.0A`, Horco
+CMSIS-DAP `3181740232` read the expected chip UID and saved all 64 KiB of
+preflash memory. The existing 372-byte bootloader matched SHA-256
+`1087d24305d3364376d8bf3f3c455154f514bea1e17a718baa1cdc32d9e99ed5`.
+The v0.1.10 Release application was programmed at `0x08001000`; SWD readback
+matched its 41,740-byte image exactly (SHA-256
+`733c7ed7fa551515f9055b57b19a4600ac53eadf7051d7b2a58b056f1af7325f`).
+The bootloader's first 4 KiB were unchanged. After reset, A100 serial HIL
+passed 6/6 and reported `FW_VER:0.1.9-left;CHG_FAULT:0;CHG_EN:0;` with
+`CHRG_V:5.1V`.
+
+The syntactically valid `OTA_BEGIN:41740,0;` request returned `OTA_ERR;`.
+An additional SWD application readback after the request still matched the
+Release image exactly, and a further reset still reported `0.1.9-left`.
+This STM32 hardware has no serial OTA staging storage. GD32 OTA and loaded
+charging were not tested by this operation.
 
 ### Current hardware test (2026-11-05)
 
@@ -132,10 +152,9 @@ printed in ascending address order, with eight uppercase hex digits each.
 `CHRG_INFO:1;` includes the same SN. `CHRG_SN:<value>;` now replies
 `SN_READ_ONLY;` on STM32F103 and cannot change this hardware ID.
 `FW_VER:1;` returns the compiled firmware identifier
-`FW_VER:0.1.9-left;` in the new source build. The `0.1.8-left` image was
-flashed and verified on 2026-11-05; the new fault-field build has not been
-flashed. The previous v0.1.7 image was flashed and
-verified on 2026-11-05; the old alternative build uses `0.1.2-right`.
+`FW_VER:0.1.9-left;` in the current flashed build. The `0.1.8-left` image
+was flashed and verified on 2026-11-05; the old alternative build uses
+`0.1.2-right`.
 `SW_DATE` is separate writable metadata, not the firmware version.
 
 ### Host serial protocol
