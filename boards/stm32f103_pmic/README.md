@@ -122,6 +122,12 @@ Release image exactly, and a further reset still reported `0.1.9-left`.
 This STM32 hardware has no serial OTA staging storage. GD32 OTA and loaded
 charging were not tested by this operation.
 
+After the user restored 20 V PD and confirmed no battery was connected, the
+read-only serial HIL again passed 6/6. `CHRG_INFO` reported 19.9-20.0 V input,
+54.3-54.6 V open-circuit output, 0.0-0.1 A indicated current,
+`CHG_FAULT:0;CHG_EN:1;`. The user reported the indicator lights looked normal.
+This open-circuit check does not establish charging current or termination.
+
 ### Current hardware test (2026-11-05)
 
 The Horco CMSIS-DAP `3181740232` confirmed the same STM32F103C8 UID, and
