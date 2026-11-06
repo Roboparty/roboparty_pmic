@@ -17,8 +17,10 @@ set(CMSIS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../thirdparty/STM32F1xx_CMSIS"
 set(OTA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../common/ota")
 
 if(PMIC_LEFT_LAYOUT)
-    set(BOOT_OTA_SOURCES)
+    set(BOOT_OTA_SOURCES boot_left.c)
+    set(BOOT_MAIN_SOURCE)
 else()
+    set(BOOT_MAIN_SOURCE boot_main.c)
     set(BOOT_OTA_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../drivers/w25q128.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../drivers/ota_storage_w25q.c
@@ -28,7 +30,7 @@ endif()
 
 add_executable(boot
     startup_stm32f103xb.s
-    boot_main.c
+    ${BOOT_MAIN_SOURCE}
     ${BOOT_OTA_SOURCES}
 )
 

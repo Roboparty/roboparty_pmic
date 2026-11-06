@@ -28,9 +28,9 @@ already-published `v0.1.7` release uses the historical `-left` asset name.
 The earlier side-by-side schematic comparison led to the internal `left` and
 `right` names. Only the current STM32F103C8 configuration is the default;
 the old alternative remains in the source tree for reference. The current
-bootloader jumps directly to the application at `0x08001000`; it
-does not probe external SPI flash. The application rejects `OTA_*`
-commands with `OTA_ERR;`. Its GPIO and peripheral mapping from the screenshot
+bootloader accepts USART3 image blocks directly into internal Flash. It does
+not probe external SPI flash. Before the serial-OTA engineering
+build, the application rejected `OTA_*` commands. Its GPIO and peripheral mapping from the screenshot
 is:
 
 | Pins | Current signal | Firmware use |
@@ -47,7 +47,7 @@ is:
 | PB10/PB11 | USART3_TX/RX | Host protocol and console |
 
 PB0-PB2, PB6-PB7, and PB12-PB15 are shown unconnected. OLED,
-button, infrared, buzzer, SPI flash, BMS communication, and OTA code are excluded or inactive in
+button, infrared, buzzer, SPI flash, and BMS communication are excluded or inactive in
 this variant. The `B` color setting has no physical blue LED output. LED
 polarity and the battery-indicator behavior are software assumptions pending
 bench observation; the schematic screenshot only identifies their nets.
@@ -122,6 +122,50 @@ Release image exactly, and a further reset still reported `0.1.9-left`.
 This STM32 hardware has no serial OTA staging storage. GD32 OTA and loaded
 charging were not tested by this operation.
 
+### Direct USART3 OTA (0.1.10 engineering build)
+
+The first installation requires SWD to replace the old jump-only bootloader.
+The new bootloader occupies 2,700 of the reserved 4,096 bytes. Application
+images remain linked at `0x08001000` and must fit below `0x0800FC00`.
+With the new application running, use:
+
+```sh
+python3 boards/stm32f103_pmic/tests/stm32_serial_ota.py \
+  --port /dev/ttyUSB0 --bin boards/stm32f103_pmic/build/Current/ChargeBAT.bin \
+  --uid 0669FF555553787287104058
+```
+
+`OTA_ENTER:1;` turns off PB3 EN and resets into the resident bootloader.
+`OTA_BEGIN:<size>,<crc32>;` erases the first application page, then
+`OTA_DATA:<offset>,<hex>;` streams 64-byte blocks. The bootloader verifies the
+Flash contents and CRC32, writes the first page last with the stack pointer
+last, and returns `OTA_DONE;`. A reset after an incomplete update leaves the
+application vector erased and the bootloader available on USART3. Repeat with
+`--recover` to re-send the complete image. The bootloader answers
+`OTA_PING:1;` with `OTA_BOOT:1;` in recovery mode.
+
+There is no second image slot and no automatic rollback to the previous
+application. Keep SWD available for service recovery. Normal boot waits up to
+two seconds for an update command. Do not send updates while a battery is
+charging; the board test used a 1.5 V input reading, no battery, and EN=0.
+
+On 2026-11-06, the bootloader was programmed by SWD while the old
+application remained byte-for-byte unchanged. A 41,864-byte `0.1.10-left`
+application was then transferred over COM82 and returned `OTA_DONE;`; SWD
+readback matched the transmitted image byte for byte.
+A second update entered from the new application with `OTA_ENTER:1;` and
+matched again. An interrupted update left the first vector word as
+`0xFFFFFFFF`; `--recover` restored the same full image and version. The
+final bootloader also accepted an A100-to-COM82 tunnel update with the
+official source build. Its application SWD readback matched SHA-256
+`1cf770aa843c32d97810fd28e2eff16b08b8a7573fcc03d468491f861ac1a024`.
+The post-update board reported `FW_VER:0.1.10-left;CHG_FAULT:0;CHG_EN:0;`
+and passed 6/6 read-only HIL checks both locally and from A100.
+The version suffix was then removed. A100 serial OTA transferred the 41,860-byte
+`0.1.10` application; SWD readback matched SHA-256
+`edbb3b3a388e2ddaf13281cabaa61c8900eedf1edd50411da00d59a03fc92160`.
+After reset, `FW_VER:0.1.10;` and the A100 read-only HIL passed 6/6.
+
 After the user restored 20 V PD and confirmed no battery was connected, the
 read-only serial HIL again passed 6/6. `CHRG_INFO` reported 19.9-20.0 V input,
 54.3-54.6 V open-circuit output, 0.0-0.1 A indicated current,
@@ -158,7 +202,7 @@ printed in ascending address order, with eight uppercase hex digits each.
 `CHRG_INFO:1;` includes the same SN. `CHRG_SN:<value>;` now replies
 `SN_READ_ONLY;` on STM32F103 and cannot change this hardware ID.
 `FW_VER:1;` returns the compiled firmware identifier
-`FW_VER:0.1.9-left;` in the current flashed build. The `0.1.8-left` image
+`FW_VER:0.1.10;` in the current source build. The `0.1.8-left` image
 was flashed and verified on 2026-11-05; the old alternative build uses
 `0.1.2-right`.
 `SW_DATE` is separate writable metadata, not the firmware version.
@@ -177,7 +221,7 @@ acts on `;` or 50 ms of input silence. Setting commands have no success ACK.
 | Request | Reply or action |
 | --- | --- |
 | `SN_GET:1;` | `CHRG_SN:<96-bit UID as 24 uppercase hex digits>;` |
-| `FW_VER:1;` | `FW_VER:0.1.9-left;` in the new source build |
+| `FW_VER:1;` | `FW_VER:0.1.10;` in the current source build |
 | `CHRG_INFO:1;` | SN, date, version, config, input/battery readings, `CHG_FAULT:0/1;`, charge status |
 | `SYS_INFO:1;` | uptime and thread stack high-water marks |
 | `BAT_INST:1;`, `IR_REC:1;` | On left both return 0 as legacy placeholders; neither input is connected |
@@ -186,7 +230,8 @@ acts on `;` or 50 ms of input silence. Setting commands have no success ACK.
 | `ICTRL:n;`, `CHG_EN:n;` | Ignored on left; right layout retains writable settings, subject to charge logic |
 | `SW_DATE:text;`, `SAVE:1;` | Set date in RAM; explicitly save config to internal Flash |
 | `CHRG_SN:text;` | `SN_READ_ONLY;` on STM32F103 |
-| `OTA_*:...;` | `OTA_ERR;` on the left layout (no external SPI Flash) |
+| `OTA_ENTER:1;` | `OTA_BOOT;` then reset to USART3 bootloader |
+| `OTA_BEGIN/DATA/END` | Bootloader image transfer; see Direct USART3 OTA above |
 
 The `B` setting is retained for protocol compatibility but has no physical
 blue LED on the left layout. An empty `SW_DATE` is expected until set and

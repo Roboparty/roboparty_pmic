@@ -85,6 +85,9 @@ jobs:
           cmake -S boards/stm32f103_pmic/bootloader -B "$B/boot-stm32f103c8" -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build "$B/boot-stm32f103c8" -j"$(nproc)"
 
+      - name: Test STM32 serial OTA protocol
+        run: python3 -m unittest discover -s boards/stm32f103_pmic/tests -p test_stm32_serial_ota.py
+
       - name: Build STM32F103 application
         run: |
           set -euo pipefail
@@ -92,7 +95,7 @@ jobs:
           TC="$PWD/boards/stm32f103_pmic/cmake/gcc-arm-none-eabi.cmake"
           cmake -S boards/stm32f103_pmic -B "$B/app-stm32f103c8" -G Ninja -DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release
           cmake --build "$B/app-stm32f103c8" -j"$(nproc)"
-          strings "$B/app-stm32f103c8/ChargeBAT.bin" | grep -Fxq '0.1.9-left'
+          strings "$B/app-stm32f103c8/ChargeBAT.bin" | grep -Fxq '0.1.10'
           strings "$B/app-stm32f103c8/ChargeBAT.bin" | grep -Fq 'CHG_FAULT:%u;'
 
       - name: Build GD32F503 bootloader
@@ -109,7 +112,7 @@ jobs:
           cmake --build build-ci/app-gd32f503 -j"$(nproc)"
           strings build-ci/app-gd32f503/ChargeBAT_GD32.bin | grep -Fxq '0.1.1-gd32'
           strings build-ci/app-gd32f503/ChargeBAT_GD32.bin | grep -Fq 'CHG_FAULT:%u;'
-          ! strings build-ci/app-gd32f503/ChargeBAT_GD32.bin | grep -Fxq '0.1.9-left'
+          ! strings build-ci/app-gd32f503/ChargeBAT_GD32.bin | grep -Fxq '0.1.10'
 
       - name: Collect artifacts
         run: |

@@ -25,7 +25,7 @@
 #ifdef GD32F503
 #define PMIC_FW_VERSION "0.1.1-gd32"
 #elif defined(PMIC_LEFT_LAYOUT)
-#define PMIC_FW_VERSION "0.1.9-left"
+#define PMIC_FW_VERSION "0.1.10"
 #elif defined(STM32F103xB)
 #define PMIC_FW_VERSION "0.1.2-right"
 #else
@@ -258,7 +258,15 @@ static void parse_host_command(const uint8_t *cmd, uint16_t len)
             printf("OTA_ABORTED;");
         }
 #else
-        if (strncmp(cmd_name, "OTA_", 4) == 0)
+        if (strcmp(cmd_name, "OTA_ENTER") == 0 && strcmp(data_str, "1") == 0)
+        {
+            /* The bootloader owns the UART and Flash while the charger is off. */
+            GPIOB->BRR = GPIO_BRR_BR3;
+            printf("OTA_BOOT;");
+            rt_thread_mdelay(100);
+            NVIC_SystemReset();
+        }
+        else if (strncmp(cmd_name, "OTA_", 4) == 0)
         {
             printf("OTA_ERR;");
         }
