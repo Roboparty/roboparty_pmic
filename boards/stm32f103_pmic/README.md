@@ -132,7 +132,9 @@ printed in ascending address order, with eight uppercase hex digits each.
 `CHRG_INFO:1;` includes the same SN. `CHRG_SN:<value>;` now replies
 `SN_READ_ONLY;` on STM32F103 and cannot change this hardware ID.
 `FW_VER:1;` returns the compiled firmware identifier
-`FW_VER:0.1.8-left;` in this build. The previous v0.1.7 image was flashed and
+`FW_VER:0.1.9-left;` in the new source build. The `0.1.8-left` image was
+flashed and verified on 2026-11-05; the new fault-field build has not been
+flashed. The previous v0.1.7 image was flashed and
 verified on 2026-11-05; the old alternative build uses `0.1.2-right`.
 `SW_DATE` is separate writable metadata, not the firmware version.
 
@@ -150,8 +152,8 @@ acts on `;` or 50 ms of input silence. Setting commands have no success ACK.
 | Request | Reply or action |
 | --- | --- |
 | `SN_GET:1;` | `CHRG_SN:<96-bit UID as 24 uppercase hex digits>;` |
-| `FW_VER:1;` | `FW_VER:0.1.8-left;` in this build |
-| `CHRG_INFO:1;` | SN, date, version, config, input/battery readings, charge status |
+| `FW_VER:1;` | `FW_VER:0.1.9-left;` in the new source build |
+| `CHRG_INFO:1;` | SN, date, version, config, input/battery readings, `CHG_FAULT:0/1;`, charge status |
 | `SYS_INFO:1;` | uptime and thread stack high-water marks |
 | `BAT_INST:1;`, `IR_REC:1;` | On left both return 0 as legacy placeholders; neither input is connected |
 | `BAT_SOC:1;`, `BAT_SOH:1;` | On left return `BMS_DISABLED;`; right layout reads cached BMS values |

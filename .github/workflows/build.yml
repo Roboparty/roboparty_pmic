@@ -92,6 +92,8 @@ jobs:
           TC="$PWD/boards/stm32f103_pmic/cmake/gcc-arm-none-eabi.cmake"
           cmake -S boards/stm32f103_pmic -B "$B/app-stm32f103c8" -G Ninja -DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release
           cmake --build "$B/app-stm32f103c8" -j"$(nproc)"
+          strings "$B/app-stm32f103c8/ChargeBAT.bin" | grep -Fxq '0.1.9-left'
+          strings "$B/app-stm32f103c8/ChargeBAT.bin" | grep -Fq 'CHG_FAULT:%u;'
 
       - name: Build GD32F503 bootloader
         run: |
@@ -105,8 +107,9 @@ jobs:
           TC="$PWD/boards/gd32f503_pmic/cmake/gcc-arm-none-eabi.cmake"
           cmake -S boards/gd32f503_pmic -B build-ci/app-gd32f503 -G Ninja -DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release
           cmake --build build-ci/app-gd32f503 -j"$(nproc)"
-          strings build-ci/app-gd32f503/ChargeBAT_GD32.bin | grep -Fxq '0.1.0-gd32'
-          ! strings build-ci/app-gd32f503/ChargeBAT_GD32.bin | grep -Fxq '0.1.8-left'
+          strings build-ci/app-gd32f503/ChargeBAT_GD32.bin | grep -Fxq '0.1.1-gd32'
+          strings build-ci/app-gd32f503/ChargeBAT_GD32.bin | grep -Fq 'CHG_FAULT:%u;'
+          ! strings build-ci/app-gd32f503/ChargeBAT_GD32.bin | grep -Fxq '0.1.9-left'
 
       - name: Collect artifacts
         run: |

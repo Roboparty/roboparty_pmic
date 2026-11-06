@@ -17,7 +17,7 @@
 | 板级启动 / SysTick / 控制台 | 编译通过，未实测 | `boards/gd32f503_pmic/board.c`，USART0 注册为 `uart3` |
 | 充电 ADC / PWM / GPIO / UART 协议 | 编译通过，未实测 | 复用 STM32 左板应用，GD32 驱动位于 `boards/gd32f503_pmic/drivers/` |
 | 内部 Flash OTA | 编译通过，未实测 | boot/app/staging/config 分区位于 512 KB Flash 内 |
-| 芯片 UID / 固件版本 | 编译通过，未实测 | `SN_GET:1;` 读取 96 位 UID，版本为 `0.1.0-gd32` |
+| 芯片 UID / 固件版本 | 编译通过，未实测 | `SN_GET:1;` 读取 96 位 UID，版本为 `0.1.1-gd32`；`CHRG_INFO:1;` 包含只读 `CHG_FAULT:0/1;` |
 | BMS `0x31` 查询与 CRC 校验 | 已实现，未接入 | `src/scud_bms_rtt.cpp`，尚未在 `main()` 中实例化 |
 | BMS `0x61` 查询 | 未实现 | 协议已约定，代码未实现 |
 | 副 BMS 管理 | 未实现 | 型号与总线拓扑待确认 |

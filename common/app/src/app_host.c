@@ -23,9 +23,9 @@
 #define HOST_RX_SIZE     512
 
 #ifdef GD32F503
-#define PMIC_FW_VERSION "0.1.0-gd32"
+#define PMIC_FW_VERSION "0.1.1-gd32"
 #elif defined(PMIC_LEFT_LAYOUT)
-#define PMIC_FW_VERSION "0.1.8-left"
+#define PMIC_FW_VERSION "0.1.9-left"
 #elif defined(STM32F103xB)
 #define PMIC_FW_VERSION "0.1.2-right"
 #else
@@ -293,6 +293,7 @@ static void parse_host_command(const uint8_t *cmd, uint16_t len)
             float bat_v;
             uint16_t soc;
             uint16_t soh;
+            uint8_t fault;
 
             app_config_lock();
             cfg = g_config;
@@ -306,6 +307,7 @@ static void parse_host_command(const uint8_t *cmd, uint16_t len)
             bat_v = BAT_V;
             soc = BmsSoc[0];
             soh = BmsSoh[0];
+            fault = pEnvSecure->exception;
             app_state_unlock();
 
             print_serial_number();
@@ -318,6 +320,7 @@ static void parse_host_command(const uint8_t *cmd, uint16_t len)
             printf("CHRG_I:%.1fA;", chrg_i);
             printf("BAT_V:%.1fV;", bat_v);
             printf("ICTRL:%d;", cfg.ictrl);
+            printf("CHG_FAULT:%u;", (unsigned int)fault);
             printf("CHG_EN:%d;", cfg.chg_en);
             if (bat_inst)
             {
