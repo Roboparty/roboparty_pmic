@@ -37,8 +37,10 @@ jobs:
 
       - name: Install build tools
         run: |
-          sudo apt-get update -o DPkg::Lock::Timeout=600
-          sudo apt-get install -o DPkg::Lock::Timeout=600 -y --no-install-recommends \
+          set -euo pipefail
+          sudo systemctl stop unattended-upgrades.service apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+          sudo apt-get update -o DPkg::Lock::Timeout=120 -o Acquire::Retries=5 -o Acquire::ForceIPv4=true
+          sudo apt-get install -o DPkg::Lock::Timeout=120 -o Acquire::Retries=5 -o Acquire::ForceIPv4=true -y --no-install-recommends \
             cmake ninja-build gcc-arm-none-eabi libnewlib-arm-none-eabi \
             libstdc++-arm-none-eabi-dev libstdc++-arm-none-eabi-newlib \
             unzip p7zip-full python3
