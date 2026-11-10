@@ -21,8 +21,9 @@ cmake --build boards/stm32f103_pmic/build/Current -j 4
 The outputs are `bootloader/build-current/boot.{bin,hex}` and
 `build/Current/ChargeBAT.{bin,hex}`. The CI release archive for future tags is
 `stm32f103c8_firmware.tar.gz`; `SHA256SUMS` covers its five images.
-`PMIC_all.hex` merges the bootloader and application into one factory SWD image;
-`boot.hex` and `ChargeBAT.hex` remain available separately. The
+The merged factory image is `pmic_stm32f103_v<version>-<YYYYMMDD>.hex`
+(for example `pmic_stm32f103_v0.1.12-20261110.hex`); `boot.hex` and
+`ChargeBAT.hex` remain available separately. The
 already-published `v0.1.7` release uses the historical `-left` asset name.
 
 ## Historical Build Name
