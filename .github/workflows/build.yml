@@ -41,7 +41,7 @@ jobs:
           sudo apt-get install -o DPkg::Lock::Timeout=600 -y --no-install-recommends \
             cmake ninja-build gcc-arm-none-eabi libnewlib-arm-none-eabi \
             libstdc++-arm-none-eabi-dev libstdc++-arm-none-eabi-newlib \
-            unzip p7zip-full python3 srecord
+            unzip p7zip-full python3
 
       - name: Restore dependency cache
         id: deps-cache
@@ -120,8 +120,8 @@ jobs:
           mkdir -p dist/stm32f103c8
           cp build-ci/boot-stm32f103c8/boot.bin build-ci/boot-stm32f103c8/boot.hex dist/stm32f103c8/
           cp build-ci/app-stm32f103c8/ChargeBAT.bin build-ci/app-stm32f103c8/ChargeBAT.hex dist/stm32f103c8/
-          srec_cat dist/stm32f103c8/boot.hex -intel dist/stm32f103c8/ChargeBAT.hex -intel \
-            -o dist/stm32f103c8/PMIC_all.hex -intel
+          python3 scripts/merge_intel_hex.py dist/stm32f103c8/boot.hex \
+            dist/stm32f103c8/ChargeBAT.hex dist/stm32f103c8/PMIC_all.hex
           test -s dist/stm32f103c8/PMIC_all.hex
           grep -q ':020000040800' dist/stm32f103c8/PMIC_all.hex
           (cd dist/stm32f103c8 && sha256sum boot.bin boot.hex ChargeBAT.bin ChargeBAT.hex PMIC_all.hex > SHA256SUMS)
