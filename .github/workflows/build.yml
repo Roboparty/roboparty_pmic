@@ -142,7 +142,7 @@ jobs:
           retention-days: 30
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v') && vars.GD32_HARDWARE_VERIFIED == 'true'
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
 
@@ -156,11 +156,20 @@ jobs:
           name: pmic-firmware
           path: dist
 
+      - name: Select release files
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp dist/stm32f103c8_firmware.tar.gz release/
+          cp dist/stm32f103c8/PMIC_all.hex release/
+          if [ "${{ vars.GD32_HARDWARE_VERIFIED }}" = "true" ]; then
+            cp dist/gd32f503_firmware.tar.gz release/
+          else
+            echo "GD32_HARDWARE_VERIFIED is not true; withholding GD32 firmware"
+          fi
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/stm32f103c8_firmware.tar.gz
-            dist/gd32f503_firmware.tar.gz
-            dist/stm32f103c8/PMIC_all.hex
+          files: release/*
           generate_release_notes: true
