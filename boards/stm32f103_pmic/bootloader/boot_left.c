@@ -22,14 +22,14 @@ void SystemInit(void)
 
 static void uart_putc(char c)
 {
-    while (!(USART3->SR & USART_SR_TXE)) {}
-    USART3->DR = (uint16_t)c;
+    while (!(USART1->SR & USART_SR_TXE)) {}
+    USART1->DR = (uint16_t)c;
 }
 
 static void reply(const char *s)
 {
     while (*s) uart_putc(*s++);
-    while (!(USART3->SR & USART_SR_TC)) {}
+    while (!(USART1->SR & USART_SR_TC)) {}
 }
 
 static void reply_number(uint32_t number)
@@ -129,7 +129,7 @@ static void jump_to_app(void)
     uint32_t sp = *(volatile uint32_t *)APP_START;
     uint32_t pc = *(volatile uint32_t *)(APP_START + 4U);
     SysTick->CTRL = 0;
-    USART3->CR1 = 0;
+    USART1->CR1 = 0;
     SCB->VTOR = APP_START;
     __set_MSP(sp);
     ((void (*)(void))pc)();
@@ -237,15 +237,16 @@ static void handle_frame(const char *s)
 void boot_main(void)
 {
     /* HSI remains at 8 MHz after reset. Keep the charger disabled. */
-    RCC->APB2ENR |= RCC_APB2ENR_AFIOEN | RCC_APB2ENR_IOPBEN;
+    RCC->APB2ENR |= RCC_APB2ENR_AFIOEN | RCC_APB2ENR_IOPAEN | RCC_APB2ENR_IOPBEN;
     AFIO->MAPR = (AFIO->MAPR & ~AFIO_MAPR_SWJ_CFG) | AFIO_MAPR_SWJ_CFG_1;
     GPIOB->CRL = (GPIOB->CRL & ~(0xFU << 12)) | (0x2U << 12);
     GPIOB->BRR = GPIO_BRR_BR3;
-    GPIOB->CRH = (GPIOB->CRH & ~((0xFU << 8) | (0xFU << 12))) |
-                  (0xBU << 8) | (0x4U << 12);
-    RCC->APB1ENR |= RCC_APB1ENR_USART3EN;
-    USART3->BRR = 8000000U / 115200U;
-    USART3->CR1 = USART_CR1_UE | USART_CR1_TE | USART_CR1_RE;
+    /* PA9 USART1_TX AF push-pull 50 MHz, PA10 USART1_RX input floating. */
+    GPIOA->CRH = (GPIOA->CRH & ~((0xFU << 4) | (0xFU << 8))) |
+                  (0xBU << 4) | (0x4U << 8);
+    RCC->APB2ENR |= RCC_APB2ENR_USART1EN;
+    USART1->BRR = 8000000U / 115200U;
+    USART1->CR1 = USART_CR1_UE | USART_CR1_TE | USART_CR1_RE;
     SysTick->LOAD = 7999U;
     SysTick->VAL = 0;
     SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk;
@@ -254,8 +255,8 @@ void boot_main(void)
     unsigned length = 0;
     uint32_t idle_ms = 0;
     while (1) {
-        if (USART3->SR & USART_SR_RXNE) {
-            char c = (char)USART3->DR;
+        if (USART1->SR & USART_SR_RXNE) {
+            char c = (char)USART1->DR;
             idle_ms = 0;
             if (c == ';') {
                 frame[length] = 0;

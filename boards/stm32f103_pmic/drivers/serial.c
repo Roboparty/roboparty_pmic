@@ -111,21 +111,25 @@ static void uart_irq_handler(struct bsp_uart *uart)
     }
 }
 
-#ifndef PMIC_LEFT_LAYOUT
 void USART1_IRQHandler(void)
 {
     rt_interrupt_enter();
+#ifdef PMIC_LEFT_LAYOUT
+    uart_irq_handler(&uart3_dev);
+#else
     uart_irq_handler(&uart1_dev);
+#endif
     rt_interrupt_leave();
 }
-#endif
 
+#ifndef PMIC_LEFT_LAYOUT
 void USART3_IRQHandler(void)
 {
     rt_interrupt_enter();
     uart_irq_handler(&uart3_dev);
     rt_interrupt_leave();
 }
+#endif
 
 static void uart_init_device(struct bsp_uart *uart, USART_TypeDef *instance,
                              IRQn_Type irq, uint32_t pclk, const char *name)
@@ -144,15 +148,17 @@ static void uart_init_device(struct bsp_uart *uart, USART_TypeDef *instance,
 
 void rt_hw_serial_init(void)
 {
-#ifndef PMIC_LEFT_LAYOUT
-    uart_init_device(&uart1_dev, USART1, USART1_IRQn, 72000000U, "uart1");
-#endif
-    uart_init_device(&uart3_dev, USART3, USART3_IRQn, 36000000U, "uart3");
-
-#ifndef PMIC_LEFT_LAYOUT
+#ifdef PMIC_LEFT_LAYOUT
+    /* Host protocol and console are routed to USART1 (PA9/PA10). */
+    uart_init_device(&uart3_dev, USART1, USART1_IRQn, 72000000U, "uart3");
     NVIC_SetPriority(USART1_IRQn, 1);
     NVIC_EnableIRQ(USART1_IRQn);
-#endif
+#else
+    uart_init_device(&uart1_dev, USART1, USART1_IRQn, 72000000U, "uart1");
+    uart_init_device(&uart3_dev, USART3, USART3_IRQn, 36000000U, "uart3");
+    NVIC_SetPriority(USART1_IRQn, 1);
+    NVIC_EnableIRQ(USART1_IRQn);
     NVIC_SetPriority(USART3_IRQn, 1);
     NVIC_EnableIRQ(USART3_IRQn);
+#endif
 }

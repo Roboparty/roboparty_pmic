@@ -31,7 +31,7 @@ already-published `v0.1.7` release uses the historical `-left` asset name.
 The earlier side-by-side schematic comparison led to the internal `left` and
 `right` names. Only the current STM32F103C8 configuration is the default;
 the old alternative remains in the source tree for reference. The current
-bootloader accepts USART3 image blocks directly into internal Flash. It does
+bootloader accepts USART1 image blocks directly into internal Flash. It does
 not probe external SPI flash. Before the serial-OTA engineering
 build, the application rejected `OTA_*` commands. Its GPIO and peripheral mapping from the screenshot
 is:
@@ -43,11 +43,11 @@ is:
 | PA4/PA5 | Status LEDs | PA5 green while charging below 54 V battery voltage; PA4 red while charging at or above 54 V; colors verified by SWD GPIO test |
 | PA6/PA7 | BAT_G / BAT_R | PA6 high at PA1 = 1.39-1.50 V; PA7 high at PA1 = 1.21-<1.39 V |
 | PA8 | FAN | TIM1_CH1 PWM |
-| PA9/PA10 | No connected 485/BMS interface | Not configured or used |
+| PA9/PA10 | USART1_TX/RX | Host protocol and console (RK3588 UART7) |
 | PB3 | EN | Charge enable |
 | PB4 | Unconnected | Not configured or read |
 | PB8/PB9 | SCL / SDA | Software I2C for CH224 and TMP100 |
-| PB10/PB11 | USART3_TX/RX | Host protocol and console |
+| PB10/PB11 | USART3_TX/RX | Not used by the current left build |
 
 PB0-PB2, PB6-PB7, and PB12-PB15 are shown unconnected. OLED,
 button, infrared, buzzer, SPI flash, and BMS communication are excluded or inactive in
@@ -58,8 +58,33 @@ bench observation; the schematic screenshot only identifies their nets.
 The application and bootloader both compile. See the hardware test below
 for the flashed image and serial checks.
 
-Since `0.1.4-left`, PB4 and PA9/PA10 are unused. The left build omits the BMS
-driver and thread and does not initialize USART1. In `0.1.6-left`, the charge
+**2026-11-11 change:** the left build routes the host protocol, console, and
+OTA to USART1 on PA9/PA10, wired to RK3588 UART7 (`/dev/ttyS7`) at
+`10.43.13.56`. The USART3/COM82 statements in the older test logs below
+describe the previous wiring.
+
+### USART1 control-port migration (2026-11-11)
+
+- Build: `boot.bin` 2708 B (SHA-256 `af34543a...`), `ChargeBAT.bin` 41860 B
+  (SHA-256 `96d68982...`). USART3/PB10/PB11 are unused in the left build.
+- Flash: J-Link Pro `10.43.14.82` (S/N 175070461, VTref 3.308 V), full-chip
+  erase, `boot.bin` at `0x08000000`, `ChargeBAT.bin` at `0x08001000`;
+  VerifyBin passed.
+- UART: RK3588 `/dev/ttyS7` at 115200 8N1; HIL 6/6; `SN_GET` 10/10.
+  `CHRG_INFO` returned `FW_VER:0.1.10;SW_DATE:2026-11-11;CHG_EN:0;CHG_FAULT:0;`,
+  `CHRG_V:5.0V`, `BAT_V:52.8-53.0V`.
+- OTA: 41860 bytes, CRC32 `0995A29F`, `OTA_DONE`; J-Link readback matched.
+- SN: `066CFF555553787287104026`; UID at `0x1FFFF7E8` is
+  `066CFF55 55537872 87104026`.
+- BMS forwarding: RK3588 `/etc/default/bms_daemon` has `FORWARD_ENABLE=0`;
+  `bms.service` still reads the BMS; no other user holds `/dev/ttyS7`.
+- `SW_DATE:2026-11-11;` plus `SAVE:1;` persisted across a J-Link reset.
+- Full-chip erase clears the config page; set `SW_DATE:<date>;` and
+  `SAVE:1;` after every factory flash.
+
+Before the 2026-11-11 UART1 migration, PB4 and PA9/PA10 were unused. The left
+build omitted the BMS driver and thread and did not initialize USART1. In
+`0.1.6-left`, the charge
 thread automatically enables PB3 EN and sets PA3 ICTRL
 after three consecutive ADC samples when input voltage is 16-32 V, CH224
 reports nonzero adapter current, and no fault is latched. It limits the
@@ -212,9 +237,10 @@ was flashed and verified on 2026-11-05; the old alternative build uses
 
 ### Host serial protocol
 
-The host port is USART3 on PB10 (TX) and PB11 (RX), 115200 baud, 8 data
-bits, no parity, one stop bit. The DAPLink CDC port is COM82 on Windows and
-is forwarded to `127.0.0.1:22282` on A100. Commands are ASCII
+The host port is USART1 on PA9 (TX) and PA10 (RX), 115200 baud, 8 data
+bits, no parity, one stop bit. It is wired to RK3588 UART7 (`/dev/ttyS7`) at
+`10.43.13.56`. The earlier DAPLink COM82-to-A100 `22282` bridge is no longer
+the control path. Commands are ASCII
 `NAME:DATA;`; replies are ASCII `FIELD:value;`, with several fields
 concatenated for `CHRG_INFO` and `SYS_INFO`. No newline or checksum is used
 for ordinary commands. The parser has a 512-byte frame, but the RT-Thread
@@ -233,8 +259,8 @@ acts on `;` or 50 ms of input silence. Setting commands have no success ACK.
 | `ICTRL:n;`, `CHG_EN:n;` | Ignored on left; right layout retains writable settings, subject to charge logic |
 | `SW_DATE:text;`, `SAVE:1;` | Set date in RAM; explicitly save config to internal Flash |
 | `CHRG_SN:text;` | `SN_READ_ONLY;` on STM32F103 |
-| `OTA_ENTER:1;` | `OTA_BOOT;` then reset to USART3 bootloader |
-| `OTA_BEGIN/DATA/END` | Bootloader image transfer; see Direct USART3 OTA above |
+| `OTA_ENTER:1;` | `OTA_BOOT;` then reset to USART1 bootloader |
+| `OTA_BEGIN/DATA/END` | Bootloader image transfer; see Direct USART3 OTA above for the earlier wiring |
 
 The `B` setting is retained for protocol compatibility but has no physical
 blue LED on the left layout. An empty `SW_DATE` is expected until set and

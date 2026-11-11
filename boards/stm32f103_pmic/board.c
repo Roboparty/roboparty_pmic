@@ -50,11 +50,9 @@ static void board_gpio_init(void)
 #endif
     gpio_mode(0, 8, 0x2U, 0x3U);
 
-#ifndef PMIC_LEFT_LAYOUT
-    /* PA9 USART1_TX, PA10 USART1_RX */
+    /* PA9 USART1_TX, PA10 USART1_RX: host protocol and console. */
     gpio_mode(0, 9, 0x2U, 0x3U);
     gpio_mode(0, 10, 0x1U, 0x0U);
-#endif
 
 #ifndef PMIC_LEFT_LAYOUT
     /* PB0 TIM3_CH3, PB1/PB2 OLED I2C. */
@@ -76,11 +74,11 @@ static void board_gpio_init(void)
     gpio_mode(1, 8, 0x1U, 0x2U);
     gpio_mode(1, 9, 0x1U, 0x2U);
 
-    /* PB10 USART3_TX, PB11 USART3_RX */
+#ifndef PMIC_LEFT_LAYOUT
+    /* PB10 USART3_TX, PB11 USART3_RX. */
     gpio_mode(1, 10, 0x2U, 0x3U);
     gpio_mode(1, 11, 0x1U, 0x0U);
 
-#ifndef PMIC_LEFT_LAYOUT
     /* PB12 SPI CS. */
     gpio_mode(1, 12, 0x0U, 0x2U);
     GPIOB->BSRR = GPIO_BSRR_BS12;
@@ -122,13 +120,12 @@ void SystemClock_Config(void)
     RCC->CFGR = (RCC->CFGR & ~RCC_CFGR_ADCPRE) | RCC_CFGR_ADCPRE_DIV6;
 
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN | RCC_APB1ENR_TIM3EN |
-                    RCC_APB1ENR_USART3EN | RCC_APB1ENR_PWREN;
-#ifdef PMIC_LEFT_LAYOUT
-    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN | RCC_APB2ENR_TIM1EN;
-#else
+                    RCC_APB1ENR_PWREN;
+#ifndef PMIC_LEFT_LAYOUT
+    RCC->APB1ENR |= RCC_APB1ENR_USART3EN;
+#endif
     RCC->APB2ENR |= RCC_APB2ENR_ADC1EN | RCC_APB2ENR_TIM1EN |
                     RCC_APB2ENR_USART1EN;
-#endif
     RCC->AHBENR |= RCC_AHBENR_DMA1EN;
 
     SystemCoreClock = 72000000U;
